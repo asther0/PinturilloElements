@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 
@@ -201,12 +201,14 @@ export default function HomePage() {
   const [avatarLoadingMore, setAvatarLoadingMore] = useState(false);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const deferredAvatarSearch = useDeferredValue(avatarSearch.trim());
-  const shuffledCuratedPets = useMemo(
-    () => shuffleArray(curatedPets),
-    [curatedPets]
-  );
+  const [shuffledCuratedPets, setShuffledCuratedPets] =
+    useState<PetdexPet[]>(curatedPets);
 
   const router = useRouter();
+
+  useEffect(() => {
+    setShuffledCuratedPets(shuffleArray(curatedPets));
+  }, [curatedPets]);
 
   useEffect(() => {
     const controller = new AbortController();
