@@ -1,222 +1,137 @@
 # PinturilloElements
 
-A real-time multiplayer web game where one player draws the logo of a
-tech company and the rest of the room races to guess which one it is.
-Logos are recreated from memory on a constrained canvas and the round
-is scored against the clock. The shipped MVP has one human and one
-built-in demo agent ("Bot") per room; a mix of humans and
-player-owned AI agents is the design target, not the current state.
+Real-time multiplayer web game. One player draws a tech-company logo
+from memory on a constrained canvas while the rest of the room races
+to guess the brand. A partida is a fixed sequence of rondas scored
+against a 60-second clock. The MVP ships a single Skribbl-style loop
+with room-funded AI agents and Bring-Your-Own-Key agents.
 
-## Concept
+## How to play
 
-PinturilloElements takes the Skribbl.io core loop and re-skins it
-around a specific catalog: tech-company logos (Vercel, Supabase,
-Obsidian, and the rest of the TryElements set). Instead of generic
-words, the drawer's word pool is a small list of company names; the
-drawer picks one and recreates its logo from their own knowledge of
-the brand.
+A room runs one partida made of rondas. The default is three rondas.
 
-The design target is a mix of humans and AI agents playing side by
-side under the same chat and drawing constraints: agents would draw
-through the canvas's stroke primitives and guess through the room's
-chat, without a side-channel answer and without seeing the target
-before the round ends. The MVP does not yet implement that target:
-today's room has one human and one built-in demo agent (see Roles),
-and the demo agent is not connected to any model.
+| Phase | Duration | What happens |
+| --- | --- | --- |
+| Choosing | 10s | Drawer picks one of three company names from a hard-coded 3-item set (Vercel, Supabase, Obsidian). The pick is private. |
+| Drawing | 60s | Drawer recreates the chosen logo with strokes only. No text, no shapes, no images, no reference. Guesser see the canvas live and chat. |
+| Result | 5s | Target word is revealed. Per-round scores are added to the leaderboard. Drawer rotates. |
 
-## Core loop (Skribbl-style)
+After the last ronda the room shows a final leaderboard and a winner.
+A `Nueva partida` button restarts the sequence with the same roster.
 
-Each partida is a sequence of rondas. A ronda plays out as follows.
+## Drawing tools
 
-1. Word choice. The current drawer is presented with three company
-   names from a fixed 3-item validation set (Vercel, Supabase,
-   Obsidian), picks one, and from then on sees only the chosen
-   name in the top bar. The other players see that the drawer is
-   choosing and then see only the strokes appear.
-2. Drawing phase. A 60-second countdown starts. The drawer draws
-   the logo of the chosen company from their own knowledge of the
-   brand on a restricted canvas: no text, no shapes, no images, no
-   paste, only strokes, a small fixed color palette, an eraser and
-   three stroke widths. No reference image is shown to the drawer
-   at any point during the round.
-3. Live guessing. The other players see the strokes appear live and
-   type guesses in the room chat. A correct guess locks in a
-   time-based score, with more points the earlier the correct
-   guess lands inside the 60-second window. Wrong guesses are
-   appended to the chat but do not change the score.
-4. Reveal and rotation. When the timer ends, the target word is
-   shown in the chat and on a brief result screen, the round's
-   scores are added to the leaderboard, and the drawer role
-   rotates to the next player.
+- Pen, eraser, three stroke widths (small, medium, large)
+- Fixed 7-color palette
+- No text, no shapes, no image paste, no reference image
 
-A partida ends after a fixed number of rondas (three by default).
-When the last round's result beat ends, the room shows a final
-leaderboard with the totals of each player and declares the winner.
-A "Nueva partida" button resets the state and runs another set of
-rondas with the same players.
+## Room modes
 
-## Roles
+Each room has a host who picks one of two modes and the agent roster.
 
-### Human
+| Mode | Humans | Agents | Host role |
+| --- | --- | --- | --- |
+| `mixed` | 2 to 8 | 1 to 6 | Plays as human |
+| `agents-only` | 0 | 1 to 6 | Watches as spectator |
 
-A human player joins a room with a name. In a ronda, a human is
-either the drawer or a guesser.
+Agents-only mode adds a `difficulty` setting (easy, medium, hard) that
+the host picks when creating the room.
 
-- As drawer: draws with the available tool set (pen, eraser, a
-  fixed 7-color palette, small / medium / large stroke width).
-  Sees only the chosen company name in the top bar. Cannot type
-  guesses in chat while drawing (Skribbl parity).
-- As guesser: sees only the live canvas and the chat. Types
-  guesses freely; correct guesses award points.
+## Players
 
-### Agent (MVP: built-in Bot)
+| Kind | Source | Behavior |
+| --- | --- | --- |
+| `human` | Joins via room code | Draws with the tool set or types guesses in chat. Guess input is disabled while drawing. |
+| `room-agent` | Added by the host | Funded by the room. Reads strokes and asks a model for a guess via `/api/agent-guess`. Also draws predefined strokes for Vercel, Supabase, Obsidian when it is the drawer. |
+| `agent-byok` | Future | Bring-Your-Own-Key agent. Not wired to a model in the MVP; uses a timed fallback guess. |
 
-The MVP ships a single built-in agent, "Bot", that is added to
-every room as a second player alongside the human. Bot is a
-deterministic local demo guesser. It does not call a model, has
-no API key, no tokens, no LLM round-trip and no separate
-transport. It runs in the same browser tab as the human and reads
-the target word from the local game state. Once a drawing phase
-starts it waits a random delay (10 to 40 seconds) and then posts
-that target word into the room chat through the same channel a
-human uses.
-
-Bot is not the hackathon AI feature yet. The intended design for
-a player-owned, model-backed agent is the one in Concept: a
-constrained drawing API, a shared chat channel, no side-channel
-answer, no reference image until reveal. Wiring that agent is a
-follow-up.
+The MVP word pool is hard-coded to Vercel, Supabase, and Obsidian.
 
 ## Building blocks
 
-PinturilloElements is a thin game shell on top of three existing
-systems.
-
-- [Portal](https://docs.useportal.co/) -- the realtime transport for
-  rooms: presence, stroke streaming, chat, round state and timers.
-  Each client holds its own state machine and exchanges events
-  through the Portal channel `room:<roomId>`. The MVP integrates
-  Portal through `@portalsdk/core` and `@portalsdk/react`, and
-  falls back to a single-process in-memory bus when no API key is
-  configured (see Running the MVP below).
+- [Portal](https://docs.useportal.co/) -- realtime transport for rooms.
+  Presence, stroke streaming, chat, round state and timers. Each client
+  holds its own state machine and exchanges events through the Portal
+  channel `room:<roomId>`. Integrated via `@portalsdk/core` and
+  `@portalsdk/react`.
 - [TryElements](https://github.com/crafter-station/elements) -- the
-  catalog of company entries the word picker draws from. Each
-  entry bundles the company name, the official reference image
-  and the brand metadata. The MVP validation set is Vercel,
-  Supabase and Obsidian. The catalog is currently a hard-coded
-  3-item list in `lib/gameLogic.ts`; the full integration is not
-  wired in the MVP.
+  catalog the word picker draws from. The MVP serves company logos
+  directly from `https://tryelements.dev/r/svg/...` for the picker
+  preview. The full catalog API is not wired; the word list itself
+  is a hard-coded 3-item array in `lib/gameLogic.ts`.
 - [Petdex](https://github.com/crafter-station/petdex) -- the avatar
-  system. Every player is intended to be represented by a Petdex
-  entry shown next to chat lines and on the leaderboard. Petdex is
-  not wired in the MVP: the player list and chat show plain names.
+  system. The join screen fetches pets from `/petdex-api/pets/search`
+  and lets each player pick one. The room shows those avatars in the
+  lobby roster and next to chat lines. The MVP ships a fallback list
+  of six pets in case Petdex is unreachable.
 
-## Current status
+## Local fallback
 
-The repo ships an internal MVP: a Next.js 15 + React 19 web app
-that runs the full Skribbl-style loop with Portal as the realtime
-transport, a built-in Bot that plays as a second guesser, and a
-hard-coded 3-item TryElements validation set (Vercel, Supabase,
-Obsidian).
+When `NEXT_PUBLIC_PORTAL_API_KEY` is missing, `components/PortalBridge.tsx`
+swaps Portal for an in-memory bus inside the same browser tab. Same
+Portal event types, same UI, same timers, no events leave the tab and
+no cross-tab multiplayer. With the key set, rooms share state across
+tabs and machines through Portal.
 
-What is currently shipped:
+## Stack
 
-- Landing page that creates a new room or joins an existing one
-  by id.
-- Room page with the full Skribbl loop: 3 rounds by default,
-  10-second word choice, 60-second drawing phase, 5-second result
-  beat, drawer rotation, per-round scoring, end-of-game
-  leaderboard and "Nueva partida".
-- Drawing canvas with the round's tool set: pen, eraser, a
-  fixed 7-color palette, three stroke widths.
-- Chat panel with a player list, live scores, system messages
-  and a guess input that is disabled while the local player is
-  the drawer.
-- A built-in Bot player that auto-guesses from 10 to 40 seconds
-  into each drawing phase through the same chat channel humans
-  use.
-- Portal SDK integration for realtime transport, with an
-  automatic local fallback (see below) so a single developer can
-  play a full partida end-to-end on one machine.
+- Next.js 15, React 19, App Router
+- TypeScript, Tailwind CSS
+- Portal SDK for realtime
+- OpenAI SDK for room-funded agent guesses
+- Bun as package manager and runner
 
-## Current limits
+## Bun commands
 
-The MVP is a working, playable client but is not a production
-deployment.
+| Command | Effect |
+| --- | --- |
+| `bun install` | Install dependencies |
+| `bun run dev` | Start `next dev` on `http://localhost:3000` |
+| `bun run build` | Production build |
+| `bun run start` | Start the production server |
+| `bun run lint` | `next lint` |
 
-- No deployed or authenticated backend. The app is a Next.js
-  client. There is no server-side game state, no auth, no
-  persistence beyond the current room session, and no historical
-  leaderboards. Portal (or its local fallback) is the only state
-  carrier.
-- No AI provider. The built-in Bot does not call a model. It
-  plays a hand-coded guesser behaviour in the same browser tab
-  as the human, with no API key, no tokens and no LLM round-trip.
-  Wiring a real player-owned, model-backed agent is a follow-up,
-  not part of the MVP.
-- TryElements and Petdex are referenced as building blocks but
-  the catalog API and the avatar system are not yet integrated at
-  runtime. The MVP uses a hard-coded 3-item word list and plain
-  player names.
-- Optimised for desktop and landscape tablet. Small phones are not
-  a supported target.
+## Environment variables
 
-## Running the MVP
+Copy `.env.example` to `.env.local` and fill in:
 
-The MVP is a Next.js 15 app. Bun is the package manager and
-runner.
+| Variable | Scope | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_PORTAL_API_KEY` | Client | Portal SDK publishable key. Without it the app falls back to the local in-memory bus. |
+| `NEXT_PUBLIC_ROOM_ID` | Client | Default room id when none is supplied. Defaults to `demo`. |
+| `OPENAI_API_KEY` | Server (`.env.local`, not `.env.example`) | OpenAI key used by `/api/agent-guess` for room-funded agents. |
 
-Install:
+## MVP status
 
-```
-bun install
-```
+- Landing page that creates or joins a room by id
+- Room lobby with copyable room code and link, host edit modal, and a
+  roster that includes humans and agents with Petdex avatars
+- Full Skribbl loop: 3 rounds by default, 10s word choice, 60s drawing,
+  5s result beat, drawer rotation, per-round scoring, end-of-game
+  leaderboard, `Nueva partida`
+- Drawing canvas with the round's tool set
+- Chat panel with player list, live scores, system messages, and a
+  guess input disabled for the drawer
+- One room-funded agent per room when the host picks `agentCount >= 1`.
+  The agent both draws predefined strokes and guesses via OpenAI
+- Local fallback for single-developer play without a Portal key
 
-Start the dev server:
+## Known limits
 
-```
-bun run dev
-```
-
-That runs `next dev` on http://localhost:3000. Open the URL in a
-desktop or landscape-tablet browser. The landing page lets you
-create a new room or join an existing one by id; both flows land
-you in the same room client.
-
-Other scripts:
-
-- `bun run build` -- production build.
-- `bun run start` -- start the production server.
-- `bun run lint` -- `next lint`.
-
-### Portal environment setup
-
-Realtime transport goes through the Portal SDK
-(`@portalsdk/core` + `@portalsdk/react`). Configure the
-publishable API key (safe for browser bundles) and an optional
-default room id in `.env.local`:
-
-```
-NEXT_PUBLIC_PORTAL_API_KEY=pk_live_...
-NEXT_PUBLIC_ROOM_ID=demo
-```
-
-`.env.example` is the template. With a key set, rooms share state
-across tabs and machines through the Portal channel
-`room:<roomId>`. Without a key, the app silently falls back to a
-local in-memory bus (see below).
-
-### Local fallback
-
-When `NEXT_PUBLIC_PORTAL_API_KEY` is missing or unset,
-`components/PortalBridge.tsx` swaps the live Portal provider for a
-local fallback provider that dispatches events inside the same
-browser tab via an in-memory handler. This lets a single developer
-open a room and play a full partida end-to-end on one machine,
-with the same UI, the same round and timer logic and the same
-Portal event types. It is a development affordance: no events
-leave the tab and there is no multiplayer. To play with another
-person on the network, configure a Portal key.
+- No deployed or authenticated backend. The app is a Next.js client.
+  There is no server-side game state, no auth, no persistence beyond
+  the current room session, and no historical leaderboards. Portal
+  (or its local fallback) is the only state carrier.
+- The agent guess endpoint needs `OPENAI_API_KEY`. Without it, room
+  agents do not call a model. BYOK agents use a timed fallback guess
+  in the MVP regardless of the key.
+- The word pool is hard-coded to Vercel, Supabase, and Obsidian. The
+  TryElements catalog API is not integrated.
+- Optimised for desktop and landscape tablet. Small phones are not a
+  supported target.
+- The MVP validation set uses company logos. The vault notes this is
+  for internal testing only and is not approval to redistribute brand
+  assets at scale.
 
 ## Project layout
 
@@ -235,19 +150,20 @@ person on the network, configure a Portal key.
 |  +- layout.tsx        Root layout.
 |  +- page.tsx          Landing page (create / join room).
 |  +- room/[id]/        Room page (room id route).
-|     +- page.tsx       Server entry, suspense around the client.
-|     +- RoomPageInner.tsx Reads ?name and forwards to client.
+|  |  +- page.tsx       Server entry, suspense around the client.
+|  |  +- RoomPageInner.tsx Reads ?name and forwards to client.
+|  +- api/agent-guess/  Server route for room-funded agent guesses.
 +- components/          Game UI and the PortalBridge provider.
 |  +- PortalBridge.tsx  Provider, local fallback, handler hook.
-|  +- RoomPageClient.tsx Room client (game state, phases, agent).
+|  +- RoomPageClient.tsx Room client (game state, phases, agents).
 |  +- GameCanvas.tsx    Canvas, pen, eraser, palette, widths.
 |  +- GameUI.tsx        Header (round, drawer, timer).
 |  +- ChatPanel.tsx     Players, chat, guess input.
+|  +- JoinRoomProfile.tsx Name + Petdex avatar picker.
 +- lib/                 Game logic and Portal event types.
-|  +- gameLogic.ts      Phases, scoring, word picker, agent.
+|  +- gameLogic.ts      Phases, scoring, word picker, agent factories.
 |  +- types.ts          Player, GameState, Stroke, PortalEvent.
-+- .vault-context/      Local symlinks to the project vault
-                        (gitignored).
++- .vault-context/      Local symlinks to the project vault (gitignored).
 ```
 
 The Next.js app under `app/` and `components/` is the MVP.

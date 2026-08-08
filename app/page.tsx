@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 
@@ -57,6 +57,15 @@ const FALLBACK_PETS: PetdexPet[] = [
     dominantColor: "#eb8b04",
   },
 ];
+
+function shuffleArray<T>(array: T[]): T[] {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
 
 function parsePet(value: unknown): PetdexPet | null {
   if (!value || typeof value !== "object") return null;
@@ -192,6 +201,10 @@ export default function HomePage() {
   const [avatarLoadingMore, setAvatarLoadingMore] = useState(false);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const deferredAvatarSearch = useDeferredValue(avatarSearch.trim());
+  const shuffledCuratedPets = useMemo(
+    () => shuffleArray(curatedPets),
+    [curatedPets]
+  );
 
   const router = useRouter();
 
@@ -321,11 +334,13 @@ export default function HomePage() {
     }
   };
 
-  const nearbyPets = curatedPets.some((pet) => pet.slug === selectedAvatar.slug)
-    ? curatedPets
+  const nearbyPets = shuffledCuratedPets.some(
+    (pet) => pet.slug === selectedAvatar.slug
+  )
+    ? shuffledCuratedPets
     : [
         selectedAvatar,
-        ...curatedPets.filter((pet) => pet.slug !== selectedAvatar.slug),
+        ...shuffledCuratedPets.filter((pet) => pet.slug !== selectedAvatar.slug),
       ].slice(0, PETDEX_CURATED_COUNT);
 
   return (
