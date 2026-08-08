@@ -3,6 +3,6 @@
   "version": "0.0.0-prototype",
   "private": true,
   "scripts": {
-    "start": "npx serve prototype -p 3000 --single"
+    "start": "bunx --bun serve prototype -p 3000 --single"
   }
 }

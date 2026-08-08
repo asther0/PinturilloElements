@@ -98,19 +98,22 @@ humans and agents is the intended default.
 PinturilloElements is designed as a thin game shell on top of three
 existing systems.
 
-- Portal. The intended realtime transport for rooms: presence,
-  stroke streaming, chat, round state and timers. Portal is the
-  source of truth for who is in the room, what the current round is
-  and what the current timer shows. The local prototype does not
-  connect to Portal.
-- TryElements. The catalog of company entries the word picker draws
-  from. Each entry bundles the company name, the official reference
-  image shown to the room at the post-round reveal, and the brand
-  metadata. The initial validation set is Vercel, Supabase and
-  Obsidian.
-- Petdex. The avatar system. Every player (human or agent) is
-  represented by a Petdex entry that the room shows next to chat
-  lines and on the leaderboard.
+- [Portal](https://docs.useportal.co/). The intended realtime
+  transport for rooms: presence, stroke streaming, chat, round state
+  and timers. Portal is the source of truth for who is in the room,
+  what the current round is and what the current timer shows. The
+  local prototype does not connect to Portal.
+- [TryElements](https://www.tryelements.dev/api/logos/all). The
+  catalog of company entries the word picker draws from. Each entry
+  bundles the company name, the official reference image shown to
+  the room at the post-round reveal, and the brand metadata. The
+  initial validation set is Vercel, Supabase and Obsidian. See the
+  [catalog index](https://www.tryelements.dev/r/logos-index.json)
+  for the full list of entries.
+- [Petdex](https://github.com/crafter-station/petdex). The avatar
+  system. Every player (human or agent) is represented by a Petdex
+  entry that the room shows next to chat lines and on the
+  leaderboard.
 
 ## Current status
 
@@ -142,13 +145,13 @@ The repo has no production build. To run the local drawing prototype
 on your machine:
 
 ```
-npm start
+bun start
 ```
 
-That runs `npx serve prototype -p 3000 --single`, which serves the
-contents of `prototype/` on http://localhost:3000. Open it in a
-desktop or landscape-tablet browser; the prototype is not optimised
-for small phones.
+That runs `bunx --bun serve prototype -p 3000 --single`, which
+serves the contents of `prototype/` on http://localhost:3000. Open
+it in a desktop or landscape-tablet browser; the prototype is not
+optimised for small phones.
 
 ## Project layout
 
@@ -156,7 +159,7 @@ for small phones.
 .
 +- AGENTS.md        Local agent instructions and vault pointers.
 +- opencode.json    Local editor config.
-+- package.json     Single script: `npm start` serves the prototype.
++- package.json     Single script: `bun start` serves the prototype.
 +- prototype/
    +- index.html    Local single-player drawing UX prototype.
 +- .vault-context/  Local symlinks to the project vault (gitignored).
