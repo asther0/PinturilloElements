@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import RoomPageClient from "@/components/RoomPageClient";
 import JoinRoomProfile from "@/components/JoinRoomProfile";
 import type { PetdexAvatar, RoomConfig, GameMode, Difficulty } from "@/lib/types";
+
+const HOST_STORAGE_PREFIX = "pinturillo-host:";
 
 function readAvatar(searchParams: URLSearchParams): PetdexAvatar | undefined {
   const slug = searchParams.get("avatarSlug")?.slice(0, 100);
@@ -71,15 +73,33 @@ export default function RoomPageInner({ roomId }: { roomId: string }) {
   const searchParams = useSearchParams();
   const name = searchParams.get("name")?.trim().slice(0, 32) || "";
 
-  const hasSeats = searchParams.has("seats");
-  const hasMode = searchParams.has("mode");
-  const isHost = hasSeats || hasMode;
+  const [isHost, setIsHost] = useState(false);
+  const [hostResolved, setHostResolved] = useState(false);
+
+  useEffect(() => {
+    let host = false;
+    try {
+      host = sessionStorage.getItem(`${HOST_STORAGE_PREFIX}${roomId}`) === "1";
+    } catch {
+      host = false;
+    }
+    setIsHost(host);
+    setHostResolved(true);
+  }, [roomId]);
 
   const roomConfig = readRoomConfig(searchParams);
   const avatar = readAvatar(searchParams);
   const localPlayerId = useMemo(() => generatePlayerId(), []);
 
   if (!name || !avatar) return <JoinRoomProfile roomId={roomId} />;
+
+  if (!hostResolved) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-zinc-900 text-sm text-zinc-400">
+        Entrando a la sala...
+      </div>
+    );
+  }
 
   return (
     <RoomPageClient

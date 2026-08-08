@@ -14,6 +14,7 @@ type PetdexPet = {
 
 const PETDEX_CURATED_COUNT = 12;
 const PETDEX_PAGE_SIZE = 30;
+const HOST_STORAGE_PREFIX = "pinturillo-host:";
 const FALLBACK_PETS: PetdexPet[] = [
   {
     slug: "nezukocoder",
@@ -286,6 +287,7 @@ export default function HomePage() {
 
   const handleCreate = () => {
     const id = Math.random().toString(36).slice(2, 8);
+    sessionStorage.setItem(`${HOST_STORAGE_PREFIX}${id}`, "1");
     const params = buildRoomParams();
     params.set("mode", createMode);
     if (createMode === "mixed") {
@@ -306,6 +308,7 @@ export default function HomePage() {
 
   const handleJoinRandom = () => {
     const id = Math.random().toString(36).slice(2, 8);
+    sessionStorage.setItem(`${HOST_STORAGE_PREFIX}${id}`, "1");
     const params = buildRoomParams();
     params.set("mode", "mixed");
     params.set("capacity", "6");
