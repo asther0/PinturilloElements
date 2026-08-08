@@ -22,7 +22,7 @@ type PetdexPet = {
   dominantColor?: string;
 };
 
-const PETDEX_CURATED_COUNT = 6;
+const PETDEX_CURATED_COUNT = 12;
 const PETDEX_PAGE_SIZE = 30;
 const FALLBACK_PETS: PetdexPet[] = [
   {
@@ -106,7 +106,13 @@ function parsePet(value: unknown): PetdexPet | null {
   };
 }
 
-function PetdexSprite({ pet }: { pet: PetdexPet }) {
+function PetdexSprite({
+  pet,
+  animated = false,
+}: {
+  pet: PetdexPet;
+  animated?: boolean;
+}) {
   return (
     <span
       role="img"
@@ -117,7 +123,9 @@ function PetdexSprite({ pet }: { pet: PetdexPet }) {
       {pet.displayName.slice(0, 1).toUpperCase()}
       <span
         aria-hidden="true"
-        className="absolute inset-0 bg-left-top bg-no-repeat [background-size:800%_auto] [image-rendering:pixelated]"
+        className={`absolute inset-0 bg-left-top bg-no-repeat [background-size:800%_auto] [image-rendering:pixelated] ${
+          animated ? "petdex-idle" : ""
+        }`}
         style={{ backgroundImage: `url(${JSON.stringify(pet.spritesheetPath)})` }}
       />
     </span>
@@ -399,41 +407,39 @@ export default function HomePage() {
               )}
             </div>
 
-            <div className="mt-3 flex items-center justify-center gap-4 py-1">
-              <button
-                type="button"
-                onClick={() => selectAdjacentAvatar(-1)}
-                aria-label="Avatar anterior"
-                className="rounded-full border border-zinc-700 bg-zinc-900 p-2.5 text-zinc-300 transition hover:border-emerald-500 hover:text-emerald-300 active:scale-95"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="m15 18-6-6 6-6" />
-                </svg>
-              </button>
-
-              <div className="min-w-0 text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-emerald-500/30 bg-zinc-900 p-1 shadow-lg shadow-emerald-950/30">
-                  <PetdexSprite pet={selectedAvatar} />
+            <div className="mt-3 text-center">
+              <div className="relative mx-auto flex h-20 w-20 items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => selectAdjacentAvatar(-1)}
+                  aria-label="Avatar anterior"
+                  className="absolute -left-9 grid h-8 w-8 place-items-center rounded-full bg-zinc-800/90 text-zinc-400 shadow-lg shadow-black/30 transition hover:bg-zinc-700 hover:text-emerald-300 active:scale-95"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m14 18-6-6 6-6" />
+                  </svg>
+                </button>
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-zinc-900 p-1 shadow-lg shadow-emerald-950/30 ring-1 ring-emerald-400/35">
+                  <PetdexSprite pet={selectedAvatar} animated />
                 </div>
-                <div className="mt-2 max-w-44 truncate text-sm font-bold text-white">
-                  {selectedAvatar.displayName}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => selectAdjacentAvatar(1)}
+                  aria-label="Avatar siguiente"
+                  className="absolute -right-9 grid h-8 w-8 place-items-center rounded-full bg-zinc-800/90 text-zinc-400 shadow-lg shadow-black/30 transition hover:bg-zinc-700 hover:text-emerald-300 active:scale-95"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m10 18 6-6-6-6" />
+                  </svg>
+                </button>
               </div>
-
-              <button
-                type="button"
-                onClick={() => selectAdjacentAvatar(1)}
-                aria-label="Avatar siguiente"
-                className="rounded-full border border-zinc-700 bg-zinc-900 p-2.5 text-zinc-300 transition hover:border-emerald-500 hover:text-emerald-300 active:scale-95"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              </button>
+              <div className="mt-1.5 truncate text-xs font-medium text-zinc-400">
+                {selectedAvatar.displayName}
+              </div>
             </div>
 
-            <div className="mt-3 flex items-center gap-2">
-              <div className="grid flex-1 grid-cols-6 gap-1.5">
+            <div className="mt-4">
+              <div className="grid grid-cols-6 gap-1.5">
                 {nearbyPets.map((pet) => (
                   <button
                     type="button"
@@ -455,9 +461,12 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setShowAvatarModal(true)}
-                className="shrink-0 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-bold text-zinc-200 transition hover:border-emerald-500 hover:text-emerald-300"
+                className="mx-auto mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 transition hover:text-emerald-300"
               >
-                Ver todos
+                Ver más avatares
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
               </button>
             </div>
           </div>
