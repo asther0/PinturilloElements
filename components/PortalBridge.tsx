@@ -12,9 +12,9 @@ import {
   ReactNode,
   MutableRefObject,
 } from "react";
-import { PortalEvent } from "@/lib/types";
+import { PortalEvent, PortalPresenceMetadata } from "@/lib/types";
 import { PortalProvider, useChannel } from "@portalsdk/react";
-import { Portal } from "@portalsdk/core";
+import { DetailedPresence, Portal } from "@portalsdk/core";
 
 const API_KEY = process.env.NEXT_PUBLIC_PORTAL_API_KEY;
 const HAS_KEY = Boolean(API_KEY && API_KEY !== "your_portal_api_key_here");
@@ -23,8 +23,9 @@ const HAS_KEY = Boolean(API_KEY && API_KEY !== "your_portal_api_key_here");
 const portalClient = HAS_KEY ? new Portal({ apiKey: API_KEY! }) : null;
 
 interface PortalContextValue {
-  send: (event: PortalEvent) => void;
+  send: (event: PortalEvent, recipientId?: string) => void;
   connected: boolean;
+  detailedPresence?: DetailedPresence;
 }
 
 const PortalContext = createContext<PortalContextValue>({
@@ -57,24 +58,18 @@ function withEventId(event: PortalEvent, fallbackId?: string): PortalEvent {
   return { ...event, eventId: fallbackId || generatedId };
 }
 
-function deliverOnce(
-  event: PortalEvent,
-  handlerRef: MutableRefObject<EventHandler | null>,
-  processedEventIds: MutableRefObject<Set<string>>,
-  fallbackId?: string
-) {
-  const handler = handlerRef.current;
-  if (!handler) return;
-
-  const normalizedEvent = withEventId(event, fallbackId);
-  const eventId = normalizedEvent.eventId;
-  if (eventId && processedEventIds.current.has(eventId)) return;
-  if (eventId) processedEventIds.current.add(eventId);
-  handler(normalizedEvent);
+function safePresenceMetadata(metadata?: PortalPresenceMetadata): PortalPresenceMetadata | undefined {
+  if (!metadata || typeof metadata.playerId !== "string") return undefined;
+  const playerId = metadata.playerId.trim().slice(0, 100);
+  if (!playerId || (metadata.playerKind !== "human" && metadata.playerKind !== "spectator")) return undefined;
+  return { playerId, playerKind: metadata.playerKind };
 }
 
 interface EventHandlerContextValue {
   handlerRef: MutableRefObject<EventHandler | null>;
+  register: (handler: EventHandler) => void;
+  unregister: (handler: EventHandler) => void;
+  deliver: (event: PortalEvent, fallbackId?: string) => void;
 }
 
 const EventHandlerContext = createContext<EventHandlerContextValue | null>(null);
@@ -83,11 +78,9 @@ export function useRegisterPortalEventHandler(handler: EventHandler) {
   const ctx = useContext(EventHandlerContext);
   useEffect(() => {
     if (!ctx) return;
-    ctx.handlerRef.current = handler;
+    ctx.register(handler);
     return () => {
-      if (ctx.handlerRef.current === handler) {
-        ctx.handlerRef.current = null;
-      }
+      ctx.unregister(handler);
     };
   }, [handler, ctx]);
 }
@@ -95,17 +88,16 @@ export function useRegisterPortalEventHandler(handler: EventHandler) {
 // Local fallback: in-memory event bus when no Portal key is configured
 function LocalFallbackProvider({
   children,
-  handlerRef,
+  deliver,
 }: {
   children: ReactNode;
-  handlerRef: MutableRefObject<EventHandler | null>;
+  deliver: (event: PortalEvent) => void;
 }) {
-  const processedEventIds = useRef(new Set<string>());
   const send = useCallback(
     (event: PortalEvent) => {
-      deliverOnce(withEventId(event), handlerRef, processedEventIds);
+      deliver(withEventId(event));
     },
-    [handlerRef]
+    [deliver]
   );
 
   return (
@@ -118,20 +110,26 @@ function LocalFallbackProvider({
 // Child component that calls useChannel at its top level (hook rules)
 function ChannelListener({
   roomId,
-  handlerRef,
+  metadata,
+  deliver,
   onSendReady,
+  onConnectionChange,
+  onPresenceChange,
 }: {
   roomId: string;
-  handlerRef: MutableRefObject<EventHandler | null>;
-  onSendReady: (send: (event: PortalEvent) => void) => void;
+  metadata?: PortalPresenceMetadata;
+  deliver: (event: PortalEvent, fallbackId?: string) => void;
+  onSendReady: (send: (event: PortalEvent, recipientId?: string) => void) => void;
+  onConnectionChange: (connected: boolean) => void;
+  onPresenceChange: (presence: DetailedPresence | undefined) => void;
 }) {
   const processedMessageIds = useRef(new Set<string>());
-  const processedEventIds = useRef(new Set<string>());
+  const safeMetadata = useMemo(() => safePresenceMetadata(metadata), [metadata]);
 
   // CRITICAL: useChannel called unconditionally at top level
-  const { send, messages } = useChannel<string>({
+  const { send, messages, presence, status } = useChannel<string>({
     channelId: `room:${roomId}`,
-    metadata: { game: "pinturilloelements", version: "0.1.0" },
+    metadata: { game: "pinturilloelements", version: "0.1.0", ...safeMetadata },
     history: 100,
   });
 
@@ -142,21 +140,29 @@ function ChannelListener({
       processedMessageIds.current.add(msg.id);
       try {
         const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
-        const event: PortalEvent = JSON.parse(content);
-        deliverOnce(event, handlerRef, processedEventIds, msg.id);
+        const event: PortalEvent = { ...JSON.parse(content), senderId: msg.sender.id };
+        deliver(event, msg.id);
       } catch {
         // ignore non-JSON or malformed messages
       }
     }
-  }, [messages, handlerRef]);
+  }, [messages, deliver]);
 
   // Expose send function to parent. useLayoutEffect guarantees this runs
   // after the component commits, avoiding setState-during-render warnings.
   useLayoutEffect(() => {
-    onSendReady((event: PortalEvent) => {
-      send({ content: JSON.stringify(withEventId(event)) });
+    onSendReady((event: PortalEvent, recipientId?: string) => {
+      send({ content: JSON.stringify(withEventId(event)), to: recipientId });
     });
   }, [send, onSendReady]);
+
+  useEffect(() => {
+    onConnectionChange(status === "ready");
+  }, [onConnectionChange, status]);
+
+  useEffect(() => {
+    onPresenceChange(presence?.kind === "detailed" ? presence : undefined);
+  }, [onPresenceChange, presence]);
 
   return null;
 }
@@ -164,44 +170,62 @@ function ChannelListener({
 export function PortalBridge({
   children,
   roomId,
+  presenceMetadata,
 }: {
   children: ReactNode;
   roomId: string;
+  presenceMetadata?: PortalPresenceMetadata;
 }) {
-  const portalSendRef = useRef<((event: PortalEvent) => void) | null>(null);
-  const connectedRef = useRef(false);
-  const [, forceRender] = useState(0);
+  const portalSendRef = useRef<((event: PortalEvent, recipientId?: string) => void) | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [detailedPresence, setDetailedPresence] = useState<DetailedPresence>();
   const handlerRef = useRef<EventHandler | null>(null);
+  const pendingEventsRef = useRef<PortalEvent[]>([]);
+  const processedEventIds = useRef(new Set<string>());
+
+  const deliver = useCallback((event: PortalEvent, fallbackId?: string) => {
+    const normalizedEvent = withEventId(event, fallbackId);
+    const eventId = normalizedEvent.eventId;
+    if (eventId && processedEventIds.current.has(eventId)) return;
+    if (eventId) processedEventIds.current.add(eventId);
+    const handler = handlerRef.current;
+    if (handler) {
+      handler(normalizedEvent);
+    } else {
+      pendingEventsRef.current.push(normalizedEvent);
+    }
+  }, []);
+
+  const register = useCallback((handler: EventHandler) => {
+    handlerRef.current = handler;
+    const pendingEvents = pendingEventsRef.current.splice(0);
+    for (const event of pendingEvents) handler(event);
+  }, []);
+
+  const unregister = useCallback((handler: EventHandler) => {
+    if (handlerRef.current === handler) handlerRef.current = null;
+  }, []);
 
   const eventHandlerCtx = useMemo<EventHandlerContextValue>(
-    () => ({ handlerRef }),
-    [handlerRef]
+    () => ({ handlerRef, register, unregister, deliver }),
+    [deliver, register, unregister]
   );
 
   const send = useCallback(
-    (event: PortalEvent) => {
-      portalSendRef.current?.(event);
+    (event: PortalEvent, recipientId?: string) => {
+      portalSendRef.current?.(event, recipientId);
     },
     []
   );
 
-  const onSendReady = useCallback(
-    (nextSend: (event: PortalEvent) => void) => {
-      portalSendRef.current = nextSend;
-      if (!connectedRef.current) {
-        connectedRef.current = true;
-        // Schedule a single re-render so the connected flag propagates.
-        // We intentionally do NOT call setState during render.
-        queueMicrotask(() => forceRender((n) => n + 1));
-      }
-    },
-    []
-  );
+  const onSendReady = useCallback((nextSend: (event: PortalEvent, recipientId?: string) => void) => {
+    portalSendRef.current = nextSend;
+  }, []);
 
   if (!HAS_KEY || !portalClient) {
     return (
       <EventHandlerContext.Provider value={eventHandlerCtx}>
-        <LocalFallbackProvider handlerRef={handlerRef}>
+        <LocalFallbackProvider deliver={deliver}>
           {children}
         </LocalFallbackProvider>
       </EventHandlerContext.Provider>
@@ -211,11 +235,14 @@ export function PortalBridge({
   return (
     <PortalProvider client={portalClient}>
       <EventHandlerContext.Provider value={eventHandlerCtx}>
-        <PortalContext.Provider value={{ send, connected: connectedRef.current }}>
+        <PortalContext.Provider value={{ send, connected, detailedPresence }}>
           <ChannelListener
             roomId={roomId}
-            handlerRef={handlerRef}
+            metadata={presenceMetadata}
+            deliver={deliver}
             onSendReady={onSendReady}
+            onConnectionChange={setConnected}
+            onPresenceChange={setDetailedPresence}
           />
           {children}
         </PortalContext.Provider>

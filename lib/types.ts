@@ -14,6 +14,11 @@ export type PetdexAvatar = {
   dominantColor?: string;
 };
 
+export type PortalPresenceMetadata = {
+  playerId: string;
+  playerKind: "human" | "spectator";
+};
+
 export type Player = {
   id: string;
   name: string;
@@ -95,10 +100,13 @@ type PortalEventData =
   | { type: "chooseWord"; payload: { words: string[] } }
   | { type: "wordChosen"; payload: { word: string } }
   | { type: "playerJoin"; payload: { player: Player } }
-  | { type: "lobbySync"; payload: { players: Player[]; hostId: string } };
+  | { type: "playerLeave"; payload: { playerId: string } }
+  | { type: "joinRejected"; payload: { playerId: string; reason: "full" } }
+  | { type: "lobbySync"; payload: { players: Player[]; hostId: string; roomConfig: RoomConfig } };
 
 export type PortalEvent = PortalEventData & {
   eventId?: string;
+  senderId?: string;
 };
 
 export type ByokSession = {

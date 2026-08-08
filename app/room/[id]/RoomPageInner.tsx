@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import RoomPageClient from "@/components/RoomPageClient";
+import JoinRoomProfile from "@/components/JoinRoomProfile";
 import type { PetdexAvatar, RoomConfig, GameMode, Difficulty } from "@/lib/types";
 
 function readAvatar(searchParams: URLSearchParams): PetdexAvatar | undefined {
@@ -68,7 +69,7 @@ function generatePlayerId(): string {
 
 export default function RoomPageInner({ roomId }: { roomId: string }) {
   const searchParams = useSearchParams();
-  const name = searchParams.get("name") || "Jugador";
+  const name = searchParams.get("name")?.trim().slice(0, 32) || "";
 
   const hasSeats = searchParams.has("seats");
   const hasMode = searchParams.has("mode");
@@ -77,6 +78,8 @@ export default function RoomPageInner({ roomId }: { roomId: string }) {
   const roomConfig = readRoomConfig(searchParams);
   const avatar = readAvatar(searchParams);
   const localPlayerId = useMemo(() => generatePlayerId(), []);
+
+  if (!name || !avatar) return <JoinRoomProfile roomId={roomId} />;
 
   return (
     <RoomPageClient

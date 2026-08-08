@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GameState, ChatMessage, Stroke, PortalEvent, PetdexAvatar, RoomConfig } from "@/lib/types";
+import Link from "next/link";
+import { GameState, ChatMessage, Stroke, PortalEvent, PetdexAvatar, Player, RoomConfig } from "@/lib/types";
 import {
   createInitialState,
   pickThreeWords,
@@ -75,6 +76,17 @@ function getBotDrawing(word: string): Stroke[] {
   ];
 }
 
+function sameLobbyPlayers(left: Player[], right: Player[]): boolean {
+  return left.length === right.length && left.every((player, index) => {
+    const candidate = right[index];
+    return candidate && player.id === candidate.id && player.name === candidate.name && player.kind === candidate.kind && player.score === candidate.score;
+  });
+}
+
+function sameRoomConfig(left: RoomConfig, right: RoomConfig): boolean {
+  return left.mode === right.mode && left.humanCapacity === right.humanCapacity && left.agentCount === right.agentCount && left.difficulty === right.difficulty;
+}
+
 const TRY_ELEMENTS_LOGOS: Record<string, string> = {
   vercel: "https://tryelements.dev/r/svg/vercel-logo.svg",
   supabase: "https://tryelements.dev/r/svg/supabase-logo.svg",
@@ -127,7 +139,13 @@ export default function RoomPageClient({
   avatar?: PetdexAvatar;
 }) {
   return (
-    <PortalBridge roomId={roomId}>
+    <PortalBridge
+      roomId={roomId}
+      presenceMetadata={{
+        playerId: localPlayerId,
+        playerKind: roomConfig.mode === "mixed" ? "human" : "spectator",
+      }}
+    >
       <RoomInner roomId={roomId} playerName={playerName} localPlayerId={localPlayerId} isHost={isHost} roomConfig={roomConfig} avatar={avatar} />
     </PortalBridge>
   );
@@ -148,17 +166,25 @@ function RoomInner({
   roomConfig: RoomConfig;
   avatar?: PetdexAvatar;
 }) {
-  const [game, setGame] = useState<GameState>(() => createInitialState(roomId, localPlayerId, playerName, isHost, roomConfig, avatar));
+  const [game, setGame] = useState<GameState>(() => {
+    const initial = createInitialState(roomId, localPlayerId, playerName, isHost, roomConfig, avatar);
+    if (!isHost && roomConfig.mode === "mixed") {
+      return { ...initial, players: [], scores: {} };
+    }
+    return initial;
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chosenWord, setChosenWord] = useState<string | null>(null);
   const [phaseTimeLeft, setPhaseTimeLeft] = useState(0);
   const [localStrokes, setLocalStrokes] = useState<Stroke[]>([]);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [roomFull, setRoomFull] = useState(false);
   const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const phaseTimeRef = useRef(0);
   const botRoundsStartedRef = useRef(new Set<string>());
   const gameRef = useRef(game);
+  const hasAnnouncedJoinRef = useRef(false);
   gameRef.current = game;
 
   const isDrawer = isLocalPlayerDrawer(game, localPlayerId);
@@ -257,30 +283,63 @@ function RoomInner({
         break;
       }
       case "playerJoin": {
+        if (g.hostId !== localPlayerId || g.phase !== "lobby") break;
         const alreadyPresent = g.players.some((p) => p.id === event.payload.player.id);
-        const isMixed = g.roomConfig.mode === "mixed";
-        if (!alreadyPresent && isMixed) {
+        const player = event.payload.player;
+        const isHuman = player.kind === "human" && Boolean(player.id) && Boolean(player.name.trim());
+        const humanCount = g.players.filter((p) => p.kind === "human").length;
+        if (!alreadyPresent && isHuman && g.roomConfig.mode === "mixed" && humanCount >= g.roomConfig.humanCapacity) {
+          const recipientId = event.senderId || portalRef.current.detailedPresence?.participants.find(
+            (participant) => participant.metadata?.playerId === player.id
+          )?.id;
+          if (recipientId) {
+            portalRef.current.send({
+              type: "joinRejected",
+              payload: { playerId: player.id, reason: "full" },
+            }, recipientId);
+          }
+          break;
+        }
+        if (!alreadyPresent && isHuman && g.roomConfig.mode === "mixed") {
           setGame((prev) => ({
             ...prev,
-            players: [...prev.players, event.payload.player],
+            players: [...prev.players, player],
+            scores: { ...prev.scores, [player.id]: player.score },
           }));
-        }
-        // Host broadcasts full roster so all clients stay in sync
-        if (g.hostId === localPlayerId && !alreadyPresent) {
-          const updatedPlayers = isMixed ? [...g.players, event.payload.player] : g.players;
-          portalRef.current.send({
-            type: "lobbySync",
-            payload: { players: updatedPlayers, hostId: g.hostId },
-          });
         }
         break;
       }
+      case "playerLeave": {
+        if (g.hostId !== localPlayerId || g.phase !== "lobby") break;
+        setGame((prev) => {
+          const leavingPlayer = prev.players.find((player) => player.id === event.payload.playerId);
+          if (!leavingPlayer || leavingPlayer.kind !== "human" || leavingPlayer.id === localPlayerId) return prev;
+          const players = prev.players.filter((player) => player.id !== event.payload.playerId);
+          const scores = Object.fromEntries(
+            Object.entries(prev.scores).filter(([playerId]) => playerId !== event.payload.playerId)
+          );
+          return { ...prev, players, scores };
+        });
+        break;
+      }
+      case "joinRejected": {
+        if (event.payload.playerId === localPlayerId && event.payload.reason === "full") setRoomFull(true);
+        break;
+      }
       case "lobbySync": {
-        setGame((prev) => ({
-          ...prev,
-          players: event.payload.players,
-          hostId: event.payload.hostId,
-        }));
+        setGame((prev) => {
+          if (
+            prev.hostId === event.payload.hostId &&
+            sameLobbyPlayers(prev.players, event.payload.players) &&
+            sameRoomConfig(prev.roomConfig, event.payload.roomConfig)
+          ) return prev;
+          return {
+            ...prev,
+            players: event.payload.players,
+            hostId: event.payload.hostId,
+            roomConfig: event.payload.roomConfig,
+          };
+        });
         break;
       }
     }
@@ -291,9 +350,11 @@ function RoomInner({
   const portalRef = useRef(portal);
   portalRef.current = portal;
 
-  // Non-hosts announce themselves to the room so the host can sync the roster
+  // Non-hosts announce themselves only after Portal is ready. They join the local
+  // roster only after the host accepts them in a lobbySync event.
   useEffect(() => {
-    if (!isHost) {
+    if (!isHost && portal.connected && !hasAnnouncedJoinRef.current) {
+      hasAnnouncedJoinRef.current = true;
       const localPlayer = makeHumanPlayer(localPlayerId, playerName, avatar);
       portal.send({
         type: "playerJoin",
@@ -301,7 +362,52 @@ function RoomInner({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]);
+  }, [isHost, portal.connected, roomId]);
+
+  // The host is the authority for the lobby roster. Re-publish its initial
+  // state once connected and every accepted roster update.
+  useEffect(() => {
+    if (!isHost || !portal.connected || game.phase !== "lobby") return;
+    portal.send({
+      type: "lobbySync",
+      payload: {
+        players: game.players,
+        hostId: localPlayerId,
+        roomConfig: game.roomConfig,
+      },
+    });
+  }, [game.phase, game.players, game.roomConfig, isHost, localPlayerId, portal]);
+
+  // In a live Portal room, detailed presence is the source of truth for human
+  // connections. Agents are room-owned and deliberately remain in the roster.
+  useEffect(() => {
+    if (!isHost || game.phase !== "lobby" || !portal.detailedPresence) return;
+    const connectedHumanIds = new Set(
+      portal.detailedPresence.participants.flatMap((participant) =>
+        participant.metadata?.playerKind === "human" && typeof participant.metadata.playerId === "string"
+          ? [participant.metadata.playerId]
+          : []
+      )
+    );
+    setGame((prev) => {
+      const players = prev.players.filter(
+        (player) => player.kind !== "human" || connectedHumanIds.has(player.id)
+      );
+      if (players.length === prev.players.length) return prev;
+      const scores = Object.fromEntries(
+        Object.entries(prev.scores).filter(([playerId]) => players.some((player) => player.id === playerId))
+      );
+      return { ...prev, players, scores };
+    });
+  }, [game.phase, isHost, portal.detailedPresence]);
+
+  useEffect(() => {
+    return () => {
+      if (roomConfig.mode === "mixed") {
+        portalRef.current.send({ type: "playerLeave", payload: { playerId: localPlayerId } });
+      }
+    };
+  }, [localPlayerId, roomConfig.mode]);
 
   useEffect(() => {
     if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
@@ -558,6 +664,18 @@ function RoomInner({
       case "medium": return "Media";
       case "hard": return "Difícil";
     }
+  }
+
+  if (roomFull) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-zinc-900 px-4 text-white">
+        <section className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-7 text-center shadow-2xl">
+          <h1 className="text-2xl font-extrabold">La sala está llena</h1>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">El host ya alcanzó el límite de jugadores humanos para esta sala.</p>
+          <Link href="/" className="mt-6 inline-flex rounded-xl bg-emerald-500 px-5 py-3 font-bold text-zinc-950 transition hover:bg-emerald-400">Volver al inicio</Link>
+        </section>
+      </main>
+    );
   }
 
   return (
