@@ -106,13 +106,7 @@ function parsePet(value: unknown): PetdexPet | null {
   };
 }
 
-function PetdexSprite({
-  pet,
-  animated = false,
-}: {
-  pet: PetdexPet;
-  animated?: boolean;
-}) {
+function PetdexSprite({ pet }: { pet: PetdexPet }) {
   return (
     <span
       role="img"
@@ -123,9 +117,7 @@ function PetdexSprite({
       {pet.displayName.slice(0, 1).toUpperCase()}
       <span
         aria-hidden="true"
-        className={`absolute inset-0 bg-left-top bg-no-repeat [background-size:800%_auto] [image-rendering:pixelated] ${
-          animated ? "petdex-idle" : ""
-        }`}
+        className="absolute inset-0 bg-left-top bg-no-repeat [background-size:800%_auto] [image-rendering:pixelated]"
         style={{ backgroundImage: `url(${JSON.stringify(pet.spritesheetPath)})` }}
       />
     </span>
@@ -421,7 +413,7 @@ export default function HomePage() {
 
               <div className="min-w-0 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-emerald-500/30 bg-zinc-900 p-1 shadow-lg shadow-emerald-950/30">
-                  <PetdexSprite pet={selectedAvatar} animated />
+                  <PetdexSprite pet={selectedAvatar} />
                 </div>
                 <div className="mt-2 max-w-44 truncate text-sm font-bold text-white">
                   {selectedAvatar.displayName}
