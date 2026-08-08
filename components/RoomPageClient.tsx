@@ -221,6 +221,9 @@ function RoomInner({
   const gameRef = useRef(game);
   const hasAnnouncedJoinRef = useRef(false);
   const lastLobbySyncSignatureRef = useRef<string | null>(null);
+  const pendingJoinsRef = useRef(new Set<string>());
+  const presenceGraceRef = useRef(new Map<string, number>());
+  const presenceReevalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   gameRef.current = game;
 
   const isDrawer = isLocalPlayerDrawer(game, localPlayerId);
@@ -320,28 +323,35 @@ function RoomInner({
       }
       case "playerJoin": {
         if (g.hostId !== localPlayerId || g.phase !== "lobby") break;
-        const alreadyPresent = g.players.some((p) => p.id === event.payload.player.id);
         const player = event.payload.player;
         const isHuman = player.kind === "human" && Boolean(player.id) && Boolean(player.name.trim());
-        const humanCount = g.players.filter((p) => p.kind === "human").length;
-        if (!alreadyPresent && isHuman && g.roomConfig.mode === "mixed" && humanCount >= g.roomConfig.humanCapacity) {
-          portalRef.current.send({
-            type: "joinRejected",
-            payload: { playerId: player.id, reason: "full" },
-          });
-          break;
-        }
+        const alreadyPresent =
+          g.players.some((p) => p.id === player.id) || pendingJoinsRef.current.has(player.id);
         if (!alreadyPresent && isHuman && g.roomConfig.mode === "mixed") {
-          setGame((prev) => ({
-            ...prev,
-            players: [...prev.players, player],
-            scores: { ...prev.scores, [player.id]: player.score },
-          }));
+          const humanCount = g.players.filter((p) => p.kind === "human").length;
+          if (humanCount + pendingJoinsRef.current.size >= g.roomConfig.humanCapacity) {
+            portalRef.current.send({
+              type: "joinRejected",
+              payload: { playerId: player.id, reason: "full" },
+            });
+            break;
+          }
+          pendingJoinsRef.current.add(player.id);
+          setGame((prev) => {
+            pendingJoinsRef.current.delete(player.id);
+            return {
+              ...prev,
+              players: [...prev.players, player],
+              scores: { ...prev.scores, [player.id]: player.score },
+            };
+          });
         }
         break;
       }
       case "playerLeave": {
         if (g.hostId !== localPlayerId || g.phase !== "lobby") break;
+        presenceGraceRef.current.delete(event.payload.playerId);
+        pendingJoinsRef.current.delete(event.payload.playerId);
         setGame((prev) => {
           const leavingPlayer = prev.players.find((player) => player.id === event.payload.playerId);
           if (!leavingPlayer || leavingPlayer.kind !== "human" || leavingPlayer.id === localPlayerId) return prev;
@@ -422,8 +432,20 @@ function RoomInner({
   // In a live Portal room, detailed presence is the source of truth for human
   // connections. Agents and the designated host are room-owned and remain in
   // the roster even if they are missing from a presence snapshot.
+  // A short grace period prevents pruning a human that joined just before the
+  // snapshot updated. If a human is kept only by grace, we schedule a
+  // timeout so they are pruned when the grace expires even if detailedPresence
+  // never produces another delta.
   useEffect(() => {
-    if (!isHost || game.phase !== "lobby" || !portal.detailedPresence) return;
+    if (!isHost || game.phase !== "lobby") {
+      if (presenceReevalTimeoutRef.current) {
+        clearTimeout(presenceReevalTimeoutRef.current);
+        presenceReevalTimeoutRef.current = null;
+      }
+      return;
+    }
+    if (!portal.detailedPresence) return;
+
     const connectedHumanIds = new Set(
       portal.detailedPresence.participants.flatMap((participant) =>
         participant.metadata?.playerKind === "human" && typeof participant.metadata.playerId === "string"
@@ -431,20 +453,94 @@ function RoomInner({
           : []
       )
     );
-    setGame((prev) => {
-      const players = prev.players.filter(
-        (player) =>
-          player.kind !== "human" ||
-          player.id === prev.hostId ||
-          connectedHumanIds.has(player.id)
+    const now = Date.now();
+    for (const id of connectedHumanIds) {
+      presenceGraceRef.current.set(id, now);
+    }
+    presenceGraceRef.current.set(localPlayerId, now);
+    const GRACE_MS = 5000;
+
+    const applyFilter = (filterNow: number, currentConnectedIds: Set<string>) => {
+      setGame((prev) => {
+        if (prev.phase !== "lobby" || prev.hostId !== localPlayerId) return prev;
+        const players = prev.players.filter((player) => {
+          if (player.kind !== "human" || player.id === prev.hostId) return true;
+          if (currentConnectedIds.has(player.id)) return true;
+          const lastSeen = presenceGraceRef.current.get(player.id);
+          if (lastSeen && filterNow - lastSeen <= GRACE_MS) return true;
+          presenceGraceRef.current.delete(player.id);
+          return false;
+        });
+        if (players.length === prev.players.length) return prev;
+        const scores = Object.fromEntries(
+          Object.entries(prev.scores).filter(([playerId]) => players.some((p) => p.id === playerId))
+        );
+        return { ...prev, players, scores };
+      });
+    };
+
+    applyFilter(now, connectedHumanIds);
+
+    const scheduleReeval = () => {
+      if (presenceReevalTimeoutRef.current) {
+        clearTimeout(presenceReevalTimeoutRef.current);
+        presenceReevalTimeoutRef.current = null;
+      }
+      const g = gameRef.current;
+      const dp = portalRef.current.detailedPresence;
+      const latestConnectedIds = new Set(
+        dp?.participants.flatMap((participant) =>
+          participant.metadata?.playerKind === "human" && typeof participant.metadata.playerId === "string"
+            ? [participant.metadata.playerId]
+            : []
+        ) || []
       );
-      if (players.length === prev.players.length) return prev;
-      const scores = Object.fromEntries(
-        Object.entries(prev.scores).filter(([playerId]) => players.some((player) => player.id === playerId))
-      );
-      return { ...prev, players, scores };
-    });
-  }, [game.phase, isHost, portal.detailedPresence]);
+      const reevalNow = Date.now();
+      let nextExpiry = Infinity;
+      for (const p of g.players) {
+        if (p.kind === "human" && p.id !== g.hostId && !latestConnectedIds.has(p.id)) {
+          const lastSeen = presenceGraceRef.current.get(p.id);
+          if (lastSeen) {
+            const remaining = GRACE_MS - (reevalNow - lastSeen);
+            if (remaining > 0 && remaining < nextExpiry) {
+              nextExpiry = remaining;
+            }
+          }
+        }
+      }
+      if (nextExpiry !== Infinity) {
+        presenceReevalTimeoutRef.current = setTimeout(() => {
+          presenceReevalTimeoutRef.current = null;
+          const g2 = gameRef.current;
+          if (g2.phase !== "lobby" || g2.hostId !== localPlayerId) return;
+          const dp2 = portalRef.current.detailedPresence;
+          const latestConnectedIds2 = new Set(
+            dp2?.participants.flatMap((participant) =>
+              participant.metadata?.playerKind === "human" && typeof participant.metadata.playerId === "string"
+                ? [participant.metadata.playerId]
+                : []
+            ) || []
+          );
+          const t = Date.now();
+          for (const id of latestConnectedIds2) {
+            presenceGraceRef.current.set(id, t);
+          }
+          presenceGraceRef.current.set(localPlayerId, t);
+          applyFilter(t, latestConnectedIds2);
+          scheduleReeval();
+        }, nextExpiry + 50);
+      }
+    };
+
+    scheduleReeval();
+
+    return () => {
+      if (presenceReevalTimeoutRef.current) {
+        clearTimeout(presenceReevalTimeoutRef.current);
+        presenceReevalTimeoutRef.current = null;
+      }
+    };
+  }, [game.phase, isHost, portal.detailedPresence, localPlayerId]);
 
   useEffect(() => {
     return () => {

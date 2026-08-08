@@ -4,7 +4,22 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { Stroke } from "@/lib/types";
 
 const MIN_POINT_DISTANCE = 2.5;
-const MAX_POINTS_PER_STROKE = 320;
+const MAX_POINTS_PER_STROKE = 72;
+
+function compactStrokePoints(
+  points: { x: number; y: number }[],
+  maxPoints: number
+): { x: number; y: number }[] {
+  if (points.length <= maxPoints) return points;
+  const result: { x: number; y: number }[] = [points[0]];
+  const step = (points.length - 1) / (maxPoints - 1);
+  for (let i = 1; i < maxPoints - 1; i++) {
+    const idx = Math.round(i * step);
+    result.push(points[idx]);
+  }
+  result.push(points[points.length - 1]);
+  return result;
+}
 
 export default function GameCanvas({
   strokes,
@@ -127,11 +142,14 @@ export default function GameCanvas({
       const distance = Math.hypot(pos.x - previous.x, pos.y - previous.y);
 
       // Pointer events can produce thousands of near-identical points. Keep
-      // each Portal stroke comfortably below the 64 KB message limit.
+      // each Portal stroke safely under the 2 KB persistent-content limit.
       if (distance < MIN_POINT_DISTANCE) return;
       points.push(pos);
       if (points.length > MAX_POINTS_PER_STROKE) {
-        currentStrokeRef.current.points = points.filter((_, index) => index % 2 === 0);
+        currentStrokeRef.current.points = compactStrokePoints(
+          currentStrokeRef.current.points,
+          MAX_POINTS_PER_STROKE
+        );
       }
       const canvas = canvasRef.current;
       if (!canvas) return;

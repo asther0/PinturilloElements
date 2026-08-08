@@ -18,6 +18,7 @@ import { DetailedPresence, Portal } from "@portalsdk/core";
 
 const API_KEY = process.env.NEXT_PUBLIC_PORTAL_API_KEY;
 const HAS_KEY = Boolean(API_KEY && API_KEY !== "your_portal_api_key_here");
+const MAX_SEND_BYTES = 2048;
 
 // Create Portal client synchronously if key exists (no network at construction)
 const portalClient = HAS_KEY ? new Portal({ apiKey: API_KEY! }) : null;
@@ -145,7 +146,7 @@ function ChannelListener({
   const { send, messages, presence, status } = useChannel<string>({
     channelId: `room:${roomId}`,
     metadata: { game: "pinturilloelements", version: "0.1.0", ...safeMetadata },
-    history: 100,
+    history: "none",
   });
 
   // Process incoming messages (including history)
@@ -166,8 +167,19 @@ function ChannelListener({
   // Expose send function to parent. useLayoutEffect guarantees this runs
   // after the component commits, avoiding setState-during-render warnings.
   useLayoutEffect(() => {
+    const encoder = new TextEncoder();
     onSendReady((event: PortalEvent, recipientId?: string) => {
-      send({ content: JSON.stringify(withEventId(event)), to: recipientId });
+      // NOTE: sender authorization is unresolved in a client-only topology;
+      // any connected client can forge senderId. Host-side validation required.
+      const content = JSON.stringify(withEventId(event));
+      const byteLength = encoder.encode(content).length;
+      if (byteLength > MAX_SEND_BYTES) {
+        console.warn(
+          `[PortalBridge] Dropping oversized ${event.type} message: ${byteLength} bytes > ${MAX_SEND_BYTES}`
+        );
+        return;
+      }
+      send({ content, to: recipientId });
     });
   }, [send, onSendReady]);
 
