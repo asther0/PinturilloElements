@@ -3,3 +3,32 @@
 # No commitear. Si otro dev trabaja en este repo, que corra
 # <vault>/00 meta/bin/init-vault-context.sh <project-path> <repo-dir>
 .vault-context/
+
+# Next.js
+/.next/
+/out/
+
+# Dependencies
+/node_modules
+
+# Environment (secrets)
+.env
+.env.local
+.env.*.local
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+*.pem
+
+# Typescript
+*.tsbuildinfo
+next-env.d.ts
