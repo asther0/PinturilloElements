@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GameState, ChatMessage, Stroke, PortalEvent, PlayerKind, PetdexAvatar } from "@/lib/types";
+import { GameState, ChatMessage, Stroke, PortalEvent, PetdexAvatar, RoomConfig } from "@/lib/types";
 import {
   createInitialState,
   pickThreeWords,
@@ -19,6 +19,7 @@ import {
   isLocalPlayerDrawer,
   getCurrentDrawer,
   playerKindBadge,
+  makeHumanPlayer,
 } from "@/lib/gameLogic";
 import {
   PortalBridge,
@@ -113,17 +114,21 @@ function CompanyLogo({ company }: { company: string }) {
 export default function RoomPageClient({
   roomId,
   playerName,
-  seats = [],
+  localPlayerId,
+  isHost,
+  roomConfig,
   avatar,
 }: {
   roomId: string;
   playerName: string;
-  seats?: { kind: PlayerKind; name?: string; config?: { provider: "openai"; model: string } }[];
+  localPlayerId: string;
+  isHost: boolean;
+  roomConfig: RoomConfig;
   avatar?: PetdexAvatar;
 }) {
   return (
     <PortalBridge roomId={roomId}>
-      <RoomInner roomId={roomId} playerName={playerName} seats={seats} avatar={avatar} />
+      <RoomInner roomId={roomId} playerName={playerName} localPlayerId={localPlayerId} isHost={isHost} roomConfig={roomConfig} avatar={avatar} />
     </PortalBridge>
   );
 }
@@ -131,26 +136,31 @@ export default function RoomPageClient({
 function RoomInner({
   roomId,
   playerName,
-  seats,
+  localPlayerId,
+  isHost,
+  roomConfig,
   avatar,
 }: {
   roomId: string;
   playerName: string;
-  seats: { kind: PlayerKind; name?: string; config?: { provider: "openai"; model: string } }[];
+  localPlayerId: string;
+  isHost: boolean;
+  roomConfig: RoomConfig;
   avatar?: PetdexAvatar;
 }) {
-  const [game, setGame] = useState<GameState>(() => createInitialState(roomId, playerName, seats, avatar));
+  const [game, setGame] = useState<GameState>(() => createInitialState(roomId, localPlayerId, playerName, isHost, roomConfig, avatar));
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chosenWord, setChosenWord] = useState<string | null>(null);
   const [phaseTimeLeft, setPhaseTimeLeft] = useState(0);
   const [localStrokes, setLocalStrokes] = useState<Stroke[]>([]);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const phaseTimeRef = useRef(0);
   const botRoundsStartedRef = useRef(new Set<string>());
   const gameRef = useRef(game);
   gameRef.current = game;
 
-  const localPlayerId = game.players[0]?.id || "local-player";
   const isDrawer = isLocalPlayerDrawer(game, localPlayerId);
   const currentDrawer = getCurrentDrawer(game);
   const currentDrawerId = currentDrawer?.id;
@@ -187,7 +197,7 @@ function RoomInner({
           }));
           setMessages((prev) => [
             ...prev,
-            createSystemMessage(`Ronda ${g.currentRound} de ${g.totalRounds} — ${drawer.name} dibuja`),
+            createSystemMessage(`Ronda ${g.currentRound} de ${g.totalRounds}: ${drawer.name} dibuja`),
           ]);
         }
         break;
@@ -246,25 +256,50 @@ function RoomInner({
         }));
         break;
       }
+      case "playerJoin": {
+        const alreadyPresent = g.players.some((p) => p.id === event.payload.player.id);
+        const isMixed = g.roomConfig.mode === "mixed";
+        if (!alreadyPresent && isMixed) {
+          setGame((prev) => ({
+            ...prev,
+            players: [...prev.players, event.payload.player],
+          }));
+        }
+        // Host broadcasts full roster so all clients stay in sync
+        if (g.hostId === localPlayerId && !alreadyPresent) {
+          const updatedPlayers = isMixed ? [...g.players, event.payload.player] : g.players;
+          portalRef.current.send({
+            type: "lobbySync",
+            payload: { players: updatedPlayers, hostId: g.hostId },
+          });
+        }
+        break;
+      }
+      case "lobbySync": {
+        setGame((prev) => ({
+          ...prev,
+          players: event.payload.players,
+          hostId: event.payload.hostId,
+        }));
+        break;
+      }
     }
-  }, []);
+  }, [localPlayerId]);
 
   useRegisterPortalEventHandler(handleEvent);
   const portal = usePortal();
+  const portalRef = useRef(portal);
+  portalRef.current = portal;
 
+  // Non-hosts announce themselves to the room so the host can sync the roster
   useEffect(() => {
-    const init = () => {
+    if (!isHost) {
+      const localPlayer = makeHumanPlayer(localPlayerId, playerName, avatar);
       portal.send({
-        type: "gameStart",
-        payload: { players: game.players, totalRounds: game.totalRounds },
+        type: "playerJoin",
+        payload: { player: localPlayer },
       });
-      portal.send({
-        type: "chooseWord",
-        payload: { words: pickThreeWords() },
-      });
-    };
-    const t = setTimeout(init, 300);
-    return () => clearTimeout(t);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
@@ -433,11 +468,9 @@ function RoomInner({
   };
 
   const handleSendGuess = (text: string) => {
-    const localPlayer = game.players[0];
-    if (!localPlayer) return;
     portal.send({
       type: "guess",
-      payload: { playerId: localPlayer.id, content: text },
+      payload: { playerId: localPlayerId, content: text },
     });
   };
 
@@ -460,7 +493,7 @@ function RoomInner({
     setLocalStrokes([]);
     setChosenWord(null);
     botRoundsStartedRef.current.clear();
-    const fresh = createInitialState(roomId, playerName, seats, avatar);
+    const fresh = createInitialState(roomId, localPlayerId, playerName, isHost, roomConfig, avatar);
     setGame(fresh);
     setTimeout(() => {
       portal.send({
@@ -474,9 +507,257 @@ function RoomInner({
     }, 300);
   };
 
+  const handleStartGame = () => {
+    if (!isHost) return;
+    const activeCount = game.roomConfig.mode === "agents-only"
+      ? game.players.length
+      : game.players.length;
+    if (activeCount < 2) return;
+    portal.send({
+      type: "gameStart",
+      payload: { players: game.players, totalRounds: game.totalRounds },
+    });
+    portal.send({
+      type: "chooseWord",
+      payload: { words: pickThreeWords() },
+    });
+  };
+
+  const totalSeats = game.players.length;
+  const canStart = totalSeats >= 2;
+
+  async function copyToClipboard(text: string) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const success = document.execCommand("copy");
+      document.body.removeChild(textArea);
+      return success;
+    } catch {
+      return false;
+    }
+  }
+
+  const publicRoomUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${roomId}`;
+
+  const isAgentOnly = game.roomConfig.mode === "agents-only";
+  const humanCount = game.players.filter((p) => p.kind === "human").length;
+
+  function difficultyLabel(d: "easy" | "medium" | "hard"): string {
+    switch (d) {
+      case "easy": return "Fácil";
+      case "medium": return "Media";
+      case "hard": return "Difícil";
+    }
+  }
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-zinc-900 text-white">
-      <GameUI
+      {game.phase === "lobby" && (
+        <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-10">
+          <div className="w-full max-w-md">
+            <div className="mb-6 text-center">
+              <div className="mb-3 flex items-center justify-center gap-2">
+                <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  Sala pública
+                </span>
+                {isAgentOnly ? (
+                  <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-400">
+                    Solo agentes
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-sky-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-sky-400">
+                    Mixta
+                  </span>
+                )}
+              </div>
+              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+                Sala de espera
+              </h1>
+              <p className="mt-2 text-sm text-zinc-400">
+                {isAgentOnly
+                  ? "Espectador. Los agentes competirán entre ellos."
+                  : "Esperando jugadores para empezar la partida."}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/90 p-5 shadow-2xl sm:p-6">
+              <div className="mb-4 text-center">
+                <div className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                  Código de sala
+                </div>
+                <div className="mt-1 text-3xl font-black tracking-widest text-white">
+                  {roomId.toUpperCase()}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await copyToClipboard(roomId.toUpperCase());
+                    if (ok) {
+                      setCopiedCode(true);
+                      setTimeout(() => setCopiedCode(false), 2000);
+                    }
+                  }}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-emerald-500 hover:bg-zinc-700"
+                >
+                  {copiedCode ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                      Copiado
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                      </svg>
+                      Copiar código
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await copyToClipboard(publicRoomUrl);
+                    if (ok) {
+                      setCopiedLink(true);
+                      setTimeout(() => setCopiedLink(false), 2000);
+                    }
+                  }}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-emerald-500 hover:bg-zinc-700"
+                >
+                  {copiedLink ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                      Copiado
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                      </svg>
+                      Copiar link
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="mt-5 border-t border-zinc-800 pt-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                    Roster
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {isAgentOnly && game.roomConfig.difficulty && (
+                      <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-bold text-zinc-300">
+                        {difficultyLabel(game.roomConfig.difficulty)}
+                      </span>
+                    )}
+                    {!isAgentOnly && (
+                      <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-bold text-zinc-300">
+                        {humanCount} / {game.roomConfig.humanCapacity} humanos
+                      </span>
+                    )}
+                    <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-bold text-zinc-300">
+                      {totalSeats} activo{totalSeats === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {game.players.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5"
+                    >
+                      <PlayerAvatar avatar={p.avatar} />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                          {p.name}
+                          {p.kind !== "human" && (
+                            <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                              {playerKindBadge(p.kind)}
+                            </span>
+                          )}
+                        </div>
+                        {p.id === localPlayerId && (
+                          <div className="text-[11px] text-zinc-500">Tú</div>
+                        )}
+                        {p.id === game.hostId && p.id !== localPlayerId && (
+                          <div className="text-[11px] text-amber-400">Host</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {isAgentOnly && (
+                  <div className="mt-3 rounded-xl border border-dashed border-zinc-800 bg-zinc-950/40 px-3 py-2.5">
+                    <div className="flex items-center gap-2 text-sm text-zinc-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      <span>
+                        {isHost ? "Tú (host)" : playerName}:
+                        <span className="ml-1 text-zinc-500">espectador</span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {isHost && (
+                <div className="mt-6 border-t border-zinc-800 pt-5">
+                  <button
+                    type="button"
+                    onClick={handleStartGame}
+                    disabled={!canStart}
+                    className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-base font-bold text-zinc-950 shadow-lg shadow-emerald-950/40 transition hover:bg-emerald-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 disabled:shadow-none"
+                  >
+                    Empezar partida
+                  </button>
+                  {!canStart && (
+                    <p className="mt-2 text-center text-xs text-zinc-500">
+                      {isAgentOnly
+                        ? "Se necesitan al menos 2 agentes para empezar."
+                        : "Se necesitan al menos 2 participantes para empezar."}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {!isHost && (
+                <p className="mt-4 text-center text-xs text-zinc-500">
+                  Esperando a que el host empiece la partida.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {game.phase !== "lobby" && (
+        <>
+          <GameUI
         game={game}
         phaseTimeLeft={phaseTimeLeft}
         isLocalDrawer={isDrawer}
@@ -677,6 +958,8 @@ function RoomInner({
             Nueva partida
           </button>
         </div>
+      )}
+        </>
       )}
     </div>
   );

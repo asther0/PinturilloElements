@@ -1,4 +1,4 @@
-import { Player, GameState, ChatMessage, RoundState, PlayerKind, PetdexAvatar } from "./types";
+import { Player, GameState, ChatMessage, RoundState, PlayerKind, PetdexAvatar, RoomConfig } from "./types";
 
 export const TECH_COMPANY_WORDS = [
   "Vercel",
@@ -37,21 +37,22 @@ export function makeByokPlayer(id: string, name: string, config: { provider: "op
 
 export function createInitialState(
   roomId: string,
+  localPlayerId: string,
   localPlayerName: string,
-  seats: { kind: PlayerKind; name?: string; config?: { provider: "openai"; model: string } }[] = [],
+  isHost: boolean,
+  roomConfig: RoomConfig,
   localAvatar?: PetdexAvatar
 ): GameState {
-  const localPlayer = makeHumanPlayer("local-player", localPlayerName, localAvatar);
-  const players: Player[] = [localPlayer];
+  const players: Player[] = [];
 
-  for (let i = 0; i < seats.length; i++) {
-    const seat = seats[i];
-    if (seat.kind === "room-agent") {
-      players.push(makeRoomAgentPlayer(`room-agent-${i}`, seat.name || "Agent"));
-    } else if (seat.kind === "agent-byok" && seat.config) {
-      players.push(makeByokPlayer(`byok-${i}`, seat.name || "Agente", seat.config));
-    } else if (seat.kind === "human") {
-      players.push(makeHumanPlayer(`human-${i}`, seat.name || `Jugador ${i + 1}`));
+  if (roomConfig.mode === "mixed") {
+    const localPlayer = makeHumanPlayer(localPlayerId, localPlayerName, localAvatar);
+    players.push(localPlayer);
+  }
+
+  if (isHost) {
+    for (let i = 0; i < roomConfig.agentCount; i++) {
+      players.push(makeRoomAgentPlayer(`room-agent-${i}`, `Bot ${i + 1}`));
     }
   }
 
@@ -67,6 +68,8 @@ export function createInitialState(
     currentDrawerIndex: 0,
     wordsForRound: [],
     scores,
+    hostId: isHost ? localPlayerId : "",
+    roomConfig,
   };
 }
 

@@ -3,17 +3,7 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type SeatOption = {
-  kind: "human" | "agent-byok" | "room-agent";
-  label: string;
-  description: string;
-};
 
-const SEAT_OPTIONS: SeatOption[] = [
-  { kind: "human", label: "Humano", description: "Jugador normal" },
-  { kind: "room-agent", label: "Agente Sala", description: "Agente pagado por la sala" },
-  { kind: "agent-byok", label: "Agente BYOK", description: "Trae tu propia API key" },
-];
 
 type PetdexPet = {
   slug: string;
@@ -183,14 +173,11 @@ async function fetchPetdexPage({
 export default function HomePage() {
   const [roomId, setRoomId] = useState("");
   const [name, setName] = useState("");
-  const [seats, setSeats] = useState<SeatOption["kind"][]>(["room-agent"]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showByokModal, setShowByokModal] = useState(false);
-  const [byokConfig, setByokConfig] = useState<{
-    provider: "openai";
-    model: string;
-    apiKey: string;
-  } | null>(null);
+  const [createMode, setCreateMode] = useState<"mixed" | "agents-only">("mixed");
+  const [humanCapacity, setHumanCapacity] = useState(6);
+  const [createAgentCount, setCreateAgentCount] = useState(1);
+  const [createDifficulty, setCreateDifficulty] = useState<"easy" | "medium" | "hard">("medium");
 
   const [curatedPets, setCuratedPets] = useState<PetdexPet[]>(FALLBACK_PETS);
   const [petsLoading, setPetsLoading] = useState(true);
@@ -268,10 +255,9 @@ export default function HomePage() {
     return () => controller.abort();
   }, [deferredAvatarSearch, showAvatarModal]);
 
-  const buildRoomParams = ({ includeSeats = false } = {}) => {
+  const buildRoomParams = () => {
     const params = new URLSearchParams();
     params.set("name", name || "Jugador");
-    if (includeSeats) params.set("seats", seats.join(","));
     if (selectedAvatar) {
       params.set("avatarSlug", selectedAvatar.slug);
       params.set("avatarDisplayName", selectedAvatar.displayName);
@@ -280,17 +266,20 @@ export default function HomePage() {
         params.set("avatarColor", selectedAvatar.dominantColor);
       }
     }
-    if (includeSeats && byokConfig) {
-      // Only metadata goes into URL, NEVER the API key
-      params.set("byokProvider", byokConfig.provider);
-      params.set("byokModel", byokConfig.model);
-    }
     return params;
   };
 
   const handleCreate = () => {
     const id = Math.random().toString(36).slice(2, 8);
-    const params = buildRoomParams({ includeSeats: true });
+    const params = buildRoomParams();
+    params.set("mode", createMode);
+    if (createMode === "mixed") {
+      params.set("capacity", String(humanCapacity));
+      params.set("agents", String(createAgentCount));
+    } else {
+      params.set("agents", String(createAgentCount));
+      params.set("difficulty", createDifficulty);
+    }
     router.push(`/room/${id}?${params.toString()}`);
   };
 
@@ -301,22 +290,12 @@ export default function HomePage() {
   };
 
   const handleJoinRandom = () => {
-    // Deterministic placeholder: generate a short random id.
-    // Labelled accurately because no directory backend exists yet.
     const id = Math.random().toString(36).slice(2, 8);
     const params = buildRoomParams();
+    params.set("mode", "mixed");
+    params.set("capacity", "6");
+    params.set("agents", "1");
     router.push(`/room/${id}?${params.toString()}`);
-  };
-
-  const addSeat = (kind: SeatOption["kind"]) => {
-    if (kind === "agent-byok") {
-      setShowByokModal(true);
-    }
-    setSeats((prev) => [...prev, kind]);
-  };
-
-  const removeSeat = (index: number) => {
-    setSeats((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleLoadMoreAvatars = async () => {
@@ -592,12 +571,14 @@ export default function HomePage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="create-room-title"
-            className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl sm:p-6"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl sm:p-6"
           >
             <div className="flex items-start justify-between">
               <div>
                 <h2 id="create-room-title" className="text-xl font-bold">Crear sala pública</h2>
-                <p className="mt-1 text-sm text-zinc-400">Configura los asientos antes de abrir la sala.</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-400">
+                  Elige cómo quieres jugar. Cualquier persona puede unirse mientras haya espacio.
+                </p>
               </div>
               <button type="button" onClick={() => setShowCreateModal(false)} aria-label="Cerrar creación de sala" className="rounded-lg p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -607,39 +588,137 @@ export default function HomePage() {
               </button>
             </div>
 
-            <div className="mt-5 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-              <div className="mb-3 text-xs font-bold uppercase tracking-wider text-zinc-400">
-                Asientos adicionales ({seats.length})
-              </div>
-              <div className="flex max-h-48 flex-col gap-2 overflow-y-auto">
-                {seats.length === 0 && (
-                  <p className="rounded-lg border border-dashed border-zinc-800 px-3 py-4 text-center text-sm text-zinc-500">Sin asientos adicionales.</p>
-                )}
-                {seats.map((kind, index) => {
-                  const option = SEAT_OPTIONS.find((item) => item.kind === kind)!;
-                  return (
-                    <div key={`${kind}-${index}`} className="flex items-center justify-between rounded-lg bg-zinc-900 px-3 py-2 text-sm">
-                      <div>
-                        <span className="font-semibold text-white">{option.label}</span>
-                        <span className="ml-2 text-xs text-zinc-500">{option.description}</span>
-                      </div>
-                      <button type="button" onClick={() => removeSeat(index)} className="text-xs font-semibold text-rose-400 hover:text-rose-300">Quitar</button>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {SEAT_OPTIONS.map((option) => (
-                  <button type="button" key={option.kind} onClick={() => addSeat(option.kind)} className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-semibold text-white transition hover:border-emerald-500">
-                    Añadir {option.label}
-                  </button>
-                ))}
-              </div>
+            <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl bg-zinc-950 p-1.5">
+              <button
+                type="button"
+                onClick={() => setCreateMode("mixed")}
+                aria-pressed={createMode === "mixed"}
+                className={`rounded-lg px-3 py-3 text-left transition ${createMode === "mixed" ? "bg-emerald-500 text-zinc-950 shadow-sm" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
+              >
+                <span className="block text-sm font-bold">Sala mixta</span>
+                <span className={`mt-0.5 block text-xs ${createMode === "mixed" ? "text-emerald-950/80" : "text-zinc-500"}`}>
+                  Juega con personas y agentes
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateMode("agents-only");
+                  setCreateAgentCount((count) => Math.max(2, count));
+                }}
+                aria-pressed={createMode === "agents-only"}
+                className={`rounded-lg px-3 py-3 text-left transition ${createMode === "agents-only" ? "bg-emerald-500 text-zinc-950 shadow-sm" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
+              >
+                <span className="block text-sm font-bold">Solo agentes</span>
+                <span className={`mt-0.5 block text-xs ${createMode === "agents-only" ? "text-emerald-950/80" : "text-zinc-500"}`}>
+                  Mira la partida como espectador
+                </span>
+              </button>
             </div>
 
-            <p className="mt-4 text-xs leading-5 text-zinc-500">
-              La sala será pública. La configuración BYOK permanece solo en esta sesión y nunca incluye la API key en la URL.
-            </p>
+            {createMode === "mixed" ? (
+              <div className="mt-5 space-y-5">
+                <div>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Capacidad de jugadores</h3>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">Tu lugar está incluido.</p>
+                    </div>
+                    <span className="shrink-0 text-sm font-bold text-emerald-400">{humanCapacity} personas</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    {[2, 4, 6, 8].map((capacity) => (
+                      <button
+                        type="button"
+                        key={capacity}
+                        onClick={() => setHumanCapacity(capacity)}
+                        aria-pressed={humanCapacity === capacity}
+                        className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${humanCapacity === capacity ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-zinc-500 hover:text-white"}`}
+                      >
+                        {capacity}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Agentes en la sala</h3>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">Se suman a la partida junto a los jugadores.</p>
+                    </div>
+                    <span className="shrink-0 text-sm font-bold text-emerald-400">{createAgentCount}</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-7">
+                    {[0, 1, 2, 3, 4, 5, 6].map((count) => (
+                      <button
+                        type="button"
+                        key={count}
+                        onClick={() => setCreateAgentCount(count)}
+                        aria-label={`${count} agentes`}
+                        aria-pressed={createAgentCount === count}
+                        className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${createAgentCount === count ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-zinc-500 hover:text-white"}`}
+                      >
+                        {count}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-5">
+                <div>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Agentes en la partida</h3>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">Serás espectador mientras los agentes juegan.</p>
+                    </div>
+                    <span className="shrink-0 text-sm font-bold text-emerald-400">{createAgentCount}</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-5 gap-2">
+                    {[2, 3, 4, 5, 6].map((count) => (
+                      <button
+                        type="button"
+                        key={count}
+                        onClick={() => setCreateAgentCount(count)}
+                        aria-label={`${count} agentes`}
+                        aria-pressed={createAgentCount === count}
+                        className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${createAgentCount === count ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-zinc-500 hover:text-white"}`}
+                      >
+                        {count}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-white">Dificultad de los agentes</h3>
+                  <div className="mt-3 space-y-2">
+                    {[
+                      { value: "easy", label: "Fácil", description: "Respuestas más simples y menor consumo por partida." },
+                      { value: "medium", label: "Media", description: "Equilibrio entre partidas ágiles y buenas decisiones." },
+                      { value: "hard", label: "Difícil", description: "Más deliberación para partidas exigentes y mayor consumo." },
+                    ].map((difficulty) => (
+                      <button
+                        type="button"
+                        key={difficulty.value}
+                        onClick={() => setCreateDifficulty(difficulty.value as "easy" | "medium" | "hard")}
+                        aria-pressed={createDifficulty === difficulty.value}
+                        className={`flex w-full items-center justify-between gap-4 rounded-xl border p-3 text-left transition ${createDifficulty === difficulty.value ? "border-emerald-400 bg-emerald-500/15" : "border-zinc-700 bg-zinc-950 hover:border-zinc-500"}`}
+                      >
+                        <span>
+                          <span className={`block text-sm font-bold ${createDifficulty === difficulty.value ? "text-emerald-300" : "text-white"}`}>{difficulty.label}</span>
+                          <span className="mt-0.5 block text-xs leading-5 text-zinc-500">{difficulty.description}</span>
+                        </span>
+                        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${createDifficulty === difficulty.value ? "bg-emerald-400" : "bg-zinc-700"}`} aria-hidden="true" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <p className="mt-5 text-xs leading-5 text-zinc-500">La sala será pública.</p>
             <button type="button" onClick={handleCreate} className="mt-4 w-full rounded-xl bg-emerald-500 px-4 py-3 font-bold text-zinc-950 transition hover:bg-emerald-400 active:scale-[0.99]">
               Crear y entrar a la sala
             </button>
@@ -647,99 +726,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {showByokModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl bg-zinc-900 p-6 shadow-2xl border border-zinc-700">
-            <h2 className="mb-4 text-lg font-bold">Configurar Agente BYOK</h2>
-            <p className="mb-4 flex items-start gap-1.5 text-xs text-amber-400">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mt-0.5 shrink-0"
-                aria-hidden="true"
-              >
-                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-                <path d="M12 9v4" />
-                <path d="M12 17h.01" />
-              </svg>
-              <span>
-                Session-only: la API key se usa solo en memoria durante esta
-                sesión. Nunca se guarda en URL, localStorage, eventos ni logs.
-              </span>
-            </p>
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-zinc-400">
-                  Proveedor
-                </label>
-                <select
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-                  value={byokConfig?.provider || "openai"}
-                  onChange={(e) =>
-                    setByokConfig((prev) => ({
-                      provider: e.target.value as "openai",
-                      model: prev?.model || "gpt-4o-mini",
-                      apiKey: prev?.apiKey || "",
-                    }))
-                  }
-                >
-                  <option value="openai">OpenAI</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-zinc-400">
-                  Modelo
-                </label>
-                <select
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-                  value={byokConfig?.model || "gpt-4o-mini"}
-                  onChange={(e) =>
-                    setByokConfig((prev) => ({
-                      provider: prev?.provider || "openai",
-                      model: e.target.value,
-                      apiKey: prev?.apiKey || "",
-                    }))
-                  }
-                >
-                  <option value="gpt-4o-mini">gpt-4o-mini</option>
-                  <option value="gpt-4o">gpt-4o</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-zinc-400">
-                  API Key
-                </label>
-                <input
-                  type="password"
-                  placeholder="sk-..."
-                  value={byokConfig?.apiKey || ""}
-                  onChange={(e) =>
-                    setByokConfig((prev) => ({
-                      provider: prev?.provider || "openai",
-                      model: prev?.model || "gpt-4o-mini",
-                      apiKey: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-emerald-500"
-                />
-              </div>
-              <button
-                onClick={() => setShowByokModal(false)}
-                className="mt-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-[0.98] hover:bg-emerald-400"
-              >
-                Guardar (solo sesión)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

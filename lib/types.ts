@@ -30,6 +30,17 @@ export type GamePhase =
   | "roundResult"
   | "gameOver";
 
+export type GameMode = "mixed" | "agents-only";
+
+export type Difficulty = "easy" | "medium" | "hard";
+
+export type RoomConfig = {
+  mode: GameMode;
+  humanCapacity: number;
+  agentCount: number;
+  difficulty?: Difficulty;
+};
+
 export type ChatMessage = {
   id: string;
   playerId: string;
@@ -70,6 +81,8 @@ export type GameState = {
   wordsForRound: string[];
   scores: Record<string, number>;
   winnerId?: string;
+  hostId?: string;
+  roomConfig: RoomConfig;
 };
 
 type PortalEventData =
@@ -80,7 +93,9 @@ type PortalEventData =
   | { type: "gameStart"; payload: { players: Player[]; totalRounds: number } }
   | { type: "gameOver"; payload: { winnerId: string; finalScores: Record<string, number> } }
   | { type: "chooseWord"; payload: { words: string[] } }
-  | { type: "wordChosen"; payload: { word: string } };
+  | { type: "wordChosen"; payload: { word: string } }
+  | { type: "playerJoin"; payload: { player: Player } }
+  | { type: "lobbySync"; payload: { players: Player[]; hostId: string } };
 
 export type PortalEvent = PortalEventData & {
   eventId?: string;
