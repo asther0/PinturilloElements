@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { ChatMessage, Player } from "@/lib/types";
+import { playerKindBadge } from "@/lib/gameLogic";
 
 export default function ChatPanel({
   messages,
@@ -37,8 +38,8 @@ export default function ChatPanel({
         <div className="mt-2 flex flex-col gap-1">
           {players.map((p) => (
             <div key={p.id} className="flex items-center justify-between text-sm">
-              <span className={p.isAgent ? "text-amber-300" : ""}>
-                {p.name} {p.isAgent ? "🤖" : ""}
+              <span className={p.kind === "room-agent" ? "text-amber-300" : p.kind === "agent-byok" ? "text-sky-300" : ""}>
+                {p.name} {playerKindBadge(p.kind)}
               </span>
               <span className="font-semibold text-emerald-400">{scores[p.id] || 0}</span>
             </div>
@@ -60,7 +61,7 @@ export default function ChatPanel({
               }`}
             >
               <div className="mb-0.5 text-xs font-semibold text-zinc-400">
-                {msg.playerName}
+                {msg.playerName} {playerKindBadge(msg.playerKind)}
               </div>
               <div>{msg.content}</div>
             </div>

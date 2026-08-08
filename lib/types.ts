@@ -1,8 +1,18 @@
+export type PlayerKind = "human" | "agent-byok" | "room-agent";
+
+export type AgentConfig = {
+  provider: "openai";
+  model: string;
+  // Raw API keys are deliberately excluded from this type.
+  // They must never be sent in Portal events, persisted, or logged.
+};
+
 export type Player = {
   id: string;
   name: string;
   score: number;
-  isAgent: boolean;
+  kind: PlayerKind;
+  agentConfig?: AgentConfig;
 };
 
 export type GamePhase =
@@ -16,6 +26,7 @@ export type ChatMessage = {
   id: string;
   playerId: string;
   playerName: string;
+  playerKind: PlayerKind;
   content: string;
   isGuess: boolean;
   isCorrect?: boolean;
@@ -62,3 +73,10 @@ export type PortalEvent =
   | { type: "gameOver"; payload: { winnerId: string; finalScores: Record<string, number> } }
   | { type: "chooseWord"; payload: { words: string[] } }
   | { type: "wordChosen"; payload: { word: string } };
+
+export type ByokSession = {
+  playerId: string;
+  provider: "openai";
+  model: string;
+  apiKey: string;
+};

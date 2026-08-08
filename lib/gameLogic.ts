@@ -1,4 +1,4 @@
-import { Player, GameState, ChatMessage, RoundState } from "./types";
+import { Player, GameState, ChatMessage, RoundState, PlayerKind } from "./types";
 
 export const TECH_COMPANY_WORDS = [
   "Vercel",
@@ -10,29 +10,62 @@ export const TOTAL_ROUNDS = 3;
 export const DRAW_TIME_SECONDS = 60;
 export const CHOOSE_WORD_TIME_SECONDS = 10;
 export const ROUND_RESULT_SECONDS = 5;
-export const AGENT_PLAYER: Player = {
-  id: "agent-1",
-  name: "Bot 🤖",
-  score: 0,
-  isAgent: true,
-};
 
-export function createInitialState(roomId: string, localPlayerName: string): GameState {
-  const localPlayer: Player = {
-    id: "local-player",
-    name: localPlayerName,
+export function makeHumanPlayer(id: string, name: string): Player {
+  return { id, name, score: 0, kind: "human" };
+}
+
+export function makeRoomAgentPlayer(id: string, name: string): Player {
+  return {
+    id,
+    name,
     score: 0,
-    isAgent: false,
+    kind: "room-agent",
+    agentConfig: { provider: "openai", model: "gpt-4o-mini" },
   };
+}
+
+export function makeByokPlayer(id: string, name: string, config: { provider: "openai"; model: string }): Player {
+  return {
+    id,
+    name,
+    score: 0,
+    kind: "agent-byok",
+    agentConfig: config,
+  };
+}
+
+export function createInitialState(
+  roomId: string,
+  localPlayerName: string,
+  seats: { kind: PlayerKind; name?: string; config?: { provider: "openai"; model: string } }[] = []
+): GameState {
+  const localPlayer = makeHumanPlayer("local-player", localPlayerName);
+  const players: Player[] = [localPlayer];
+
+  for (let i = 0; i < seats.length; i++) {
+    const seat = seats[i];
+    if (seat.kind === "room-agent") {
+      players.push(makeRoomAgentPlayer(`room-agent-${i}`, seat.name || "Agent"));
+    } else if (seat.kind === "agent-byok" && seat.config) {
+      players.push(makeByokPlayer(`byok-${i}`, seat.name || "Agente", seat.config));
+    } else if (seat.kind === "human") {
+      players.push(makeHumanPlayer(`human-${i}`, seat.name || `Jugador ${i + 1}`));
+    }
+  }
+
+  const scores: Record<string, number> = {};
+  for (const p of players) scores[p.id] = 0;
+
   return {
     roomId,
     phase: "lobby",
-    players: [localPlayer, { ...AGENT_PLAYER }],
+    players,
     currentRound: 1,
     totalRounds: TOTAL_ROUNDS,
     currentDrawerIndex: 0,
     wordsForRound: [],
-    scores: { [localPlayer.id]: 0, [AGENT_PLAYER.id]: 0 },
+    scores,
   };
 }
 
@@ -114,6 +147,7 @@ export function createSystemMessage(content: string): ChatMessage {
     id: `system-${Date.now()}`,
     playerId: "system",
     playerName: "Sistema",
+    playerKind: "human",
     content,
     isGuess: false,
     isSystem: true,
@@ -131,9 +165,21 @@ export function createChatMessage(
     id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     playerId: player.id,
     playerName: player.name,
+    playerKind: player.kind,
     content,
     isGuess,
     isCorrect,
     timestamp: Date.now(),
   };
+}
+
+export function playerKindBadge(kind: PlayerKind): string {
+  switch (kind) {
+    case "human":
+      return "";
+    case "agent-byok":
+      return "BYOK";
+    case "room-agent":
+      return "BOT";
+  }
 }

@@ -189,17 +189,48 @@ export default function GameCanvas({
         <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-black/70 px-4 py-2 backdrop-blur">
           <button
             onClick={() => setTool("pen")}
-            className={`rounded-lg p-2 text-lg ${tool === "pen" ? "bg-white/25" : ""}`}
+            className={`flex items-center justify-center rounded-lg p-2 ${tool === "pen" ? "bg-white/25" : ""}`}
             title="Lápiz"
+            aria-label="Lápiz"
           >
-            ✏️
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+              <path d="m15 5 4 4" />
+            </svg>
           </button>
           <button
             onClick={() => setTool("eraser")}
-            className={`rounded-lg p-2 text-lg ${tool === "eraser" ? "bg-white/25" : ""}`}
+            className={`flex items-center justify-center rounded-lg p-2 ${tool === "eraser" ? "bg-white/25" : ""}`}
             title="Borrador"
+            aria-label="Borrador"
           >
-            🧼
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
+              <path d="M22 21H7" />
+              <path d="m5 11 9 9" />
+            </svg>
           </button>
           <div className="mx-1 h-6 w-px bg-white/20" />
           <div className="flex gap-1">
