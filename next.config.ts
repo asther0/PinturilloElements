@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Keep dev and production build artifacts separate. A concurrent `next build`
+  // must never replace chunks that a running `next dev` server still requires.
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   async rewrites() {
     return [
       {
