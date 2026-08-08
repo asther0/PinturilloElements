@@ -289,15 +289,10 @@ function RoomInner({
         const isHuman = player.kind === "human" && Boolean(player.id) && Boolean(player.name.trim());
         const humanCount = g.players.filter((p) => p.kind === "human").length;
         if (!alreadyPresent && isHuman && g.roomConfig.mode === "mixed" && humanCount >= g.roomConfig.humanCapacity) {
-          const recipientId = event.senderId || portalRef.current.detailedPresence?.participants.find(
-            (participant) => participant.metadata?.playerId === player.id
-          )?.id;
-          if (recipientId) {
-            portalRef.current.send({
-              type: "joinRejected",
-              payload: { playerId: player.id, reason: "full" },
-            }, recipientId);
-          }
+          portalRef.current.send({
+            type: "joinRejected",
+            payload: { playerId: player.id, reason: "full" },
+          });
           break;
         }
         if (!alreadyPresent && isHuman && g.roomConfig.mode === "mixed") {
