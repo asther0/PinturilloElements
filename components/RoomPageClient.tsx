@@ -358,6 +358,7 @@ function RoomInner({
         break;
       }
       case "lobbySync": {
+        if (g.hostId === localPlayerId) break;
         setGame((prev) => {
           if (
             prev.hostId === event.payload.hostId &&
@@ -755,6 +756,7 @@ function RoomInner({
 
   const isAgentOnly = game.roomConfig.mode === "agents-only";
   const humanCount = game.players.filter((p) => p.kind === "human").length;
+  const roomAgentCount = game.players.filter((p) => p.kind === "room-agent").length;
 
   function difficultyLabel(d: "easy" | "medium" | "hard"): string {
     switch (d) {
@@ -1007,6 +1009,9 @@ function RoomInner({
                       </span>
                     )}
                     <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-bold text-zinc-300">
+                      {roomAgentCount} / {game.roomConfig.agentCount} agentes
+                    </span>
+                    <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-bold text-zinc-300">
                       {totalSeats} activo{totalSeats === 1 ? "" : "s"}
                     </span>
                   </div>
@@ -1095,7 +1100,7 @@ function RoomInner({
               <div className="mt-4 text-center">
                 <Link
                   href="/"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-emerald-500 hover:bg-zinc-700"
+                  className="inline-flex items-center gap-1.5 text-sm text-zinc-400 transition hover:text-emerald-400"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
