@@ -574,33 +574,41 @@ function RoomInner({
         if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
 
         if (gameRef.current.phase === "choosing") {
-          const word = gameRef.current.wordsForRound[0] || pickThreeWords()[0];
-          portal.send({ type: "wordChosen", payload: { word } });
+          if (isHost) {
+            const word = gameRef.current.wordsForRound[0] || pickThreeWords()[0];
+            portal.send({ type: "wordChosen", payload: { word } });
+          }
         } else if (gameRef.current.phase === "drawing") {
-          portal.send({
-            type: "roundEnd",
-            payload: {
-              word: gameRef.current.roundState?.word || "",
-              scores: gameRef.current.scores,
-            },
-          });
-        } else if (gameRef.current.phase === "roundResult") {
-          if (shouldEndGame(gameRef.current)) {
-            const winner = getWinner(gameRef.current);
+          if (isHost) {
             portal.send({
-              type: "gameOver",
+              type: "roundEnd",
               payload: {
-                winnerId: winner?.id || "",
-                finalScores: gameRef.current.scores,
+                word: gameRef.current.roundState?.word || "",
+                scores: gameRef.current.scores,
               },
             });
+          }
+        } else if (gameRef.current.phase === "roundResult") {
+          if (shouldEndGame(gameRef.current)) {
+            if (isHost) {
+              const winner = getWinner(gameRef.current);
+              portal.send({
+                type: "gameOver",
+                payload: {
+                  winnerId: winner?.id || "",
+                  finalScores: gameRef.current.scores,
+                },
+              });
+            }
           } else {
             const next = advanceDrawer(gameRef.current);
             setGame(next);
-            portal.send({
-              type: "chooseWord",
-              payload: { words: pickThreeWords() },
-            });
+            if (isHost) {
+              portal.send({
+                type: "chooseWord",
+                payload: { words: pickThreeWords() },
+              });
+            }
           }
         }
       }
@@ -609,7 +617,7 @@ function RoomInner({
     return () => {
       if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
     };
-  }, [game.phase, portal]);
+  }, [game.phase, isHost, portal]);
 
   useEffect(() => {
     if (
@@ -622,6 +630,7 @@ function RoomInner({
       return;
     }
     if (currentDrawerKind === "human") return;
+    if (!isHost) return;
 
     const roundKey = `${game.currentRound}:${currentDrawerId}:${roundStartedAt}`;
     if (botRoundsStartedRef.current.has(roundKey)) return;
@@ -641,6 +650,7 @@ function RoomInner({
     currentDrawerKind,
     game.currentRound,
     game.phase,
+    isHost,
     portal,
     roundStartedAt,
     roundWord,
@@ -649,6 +659,7 @@ function RoomInner({
   // Room-funded agent guess logic
   useEffect(() => {
     if (game.phase !== "drawing" || !game.roundState) return;
+    if (!isHost) return;
 
     const roomAgent = game.players.find((p) => p.kind === "room-agent");
     if (!roomAgent) return;
@@ -680,11 +691,12 @@ function RoomInner({
 
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game.phase, game.roundState?.word, game.players, portal]);
+  }, [game.phase, game.roundState?.word, game.players, isHost, portal]);
 
   // Simple BYOK / legacy agent guess fallback (random delay, no real model call)
   useEffect(() => {
     if (game.phase !== "drawing" || !game.roundState) return;
+    if (!isHost) return;
 
     const nonRoomAgents = game.players.filter(
       (p) =>
@@ -708,9 +720,10 @@ function RoomInner({
       for (const t of timers) clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game.phase, game.roundState?.word, game.players, portal]);
+  }, [game.phase, game.roundState?.word, game.players, isHost, portal]);
 
   const handleChooseWord = (word: string) => {
+    if (!isDrawer && !isHost) return;
     portal.send({ type: "wordChosen", payload: { word } });
   };
 
@@ -726,6 +739,7 @@ function RoomInner({
   };
 
   const handleEndRoundEarly = () => {
+    if (!isDrawer && !isHost) return;
     portal.send({
       type: "roundEnd",
       payload: {
