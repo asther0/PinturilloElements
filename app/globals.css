@@ -12,47 +12,23 @@ body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* Petdex sprites are an 8 by 9 atlas. The first six cells form the reliable
-   idle cycle; the remaining cells are not guaranteed to be populated. */
-@keyframes petdex-idle-frames {
+@keyframes petdex-avatar-float {
   0%,
-  16.66% {
-    background-position: 0 0;
-  }
-
-  16.67%,
-  33.32% {
-    background-position: 14.2857% 0;
-  }
-
-  33.33%,
-  49.99% {
-    background-position: 28.5714% 0;
-  }
-
-  50%,
-  66.66% {
-    background-position: 42.8571% 0;
-  }
-
-  66.67%,
-  83.32% {
-    background-position: 57.1428% 0;
-  }
-
-  83.33%,
   100% {
-    background-position: 71.4285% 0;
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-2px);
   }
 }
 
-.petdex-idle {
-  animation: petdex-idle-frames 1.2s linear infinite;
-  will-change: background-position;
+.petdex-avatar-float {
+  animation: petdex-avatar-float 2.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .petdex-idle {
+  .petdex-avatar-float {
     animation: none;
   }
 }
