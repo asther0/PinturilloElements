@@ -1,4 +1,4 @@
-import { Player, GameState, ChatMessage, RoundState, PlayerKind } from "./types";
+import { Player, GameState, ChatMessage, RoundState, PlayerKind, PetdexAvatar } from "./types";
 
 export const TECH_COMPANY_WORDS = [
   "Vercel",
@@ -11,8 +11,8 @@ export const DRAW_TIME_SECONDS = 60;
 export const CHOOSE_WORD_TIME_SECONDS = 10;
 export const ROUND_RESULT_SECONDS = 5;
 
-export function makeHumanPlayer(id: string, name: string): Player {
-  return { id, name, score: 0, kind: "human" };
+export function makeHumanPlayer(id: string, name: string, avatar?: PetdexAvatar): Player {
+  return { id, name, score: 0, kind: "human", avatar };
 }
 
 export function makeRoomAgentPlayer(id: string, name: string): Player {
@@ -38,9 +38,10 @@ export function makeByokPlayer(id: string, name: string, config: { provider: "op
 export function createInitialState(
   roomId: string,
   localPlayerName: string,
-  seats: { kind: PlayerKind; name?: string; config?: { provider: "openai"; model: string } }[] = []
+  seats: { kind: PlayerKind; name?: string; config?: { provider: "openai"; model: string } }[] = [],
+  localAvatar?: PetdexAvatar
 ): GameState {
-  const localPlayer = makeHumanPlayer("local-player", localPlayerName);
+  const localPlayer = makeHumanPlayer("local-player", localPlayerName, localAvatar);
   const players: Player[] = [localPlayer];
 
   for (let i = 0; i < seats.length; i++) {

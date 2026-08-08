@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useCallback,
   useMemo,
@@ -47,6 +48,31 @@ export function usePortal() {
 
 type EventHandler = (event: PortalEvent) => void;
 
+function withEventId(event: PortalEvent, fallbackId?: string): PortalEvent {
+  if (event.eventId) return event;
+
+  const generatedId =
+    globalThis.crypto?.randomUUID?.() ||
+    `event-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return { ...event, eventId: fallbackId || generatedId };
+}
+
+function deliverOnce(
+  event: PortalEvent,
+  handlerRef: MutableRefObject<EventHandler | null>,
+  processedEventIds: MutableRefObject<Set<string>>,
+  fallbackId?: string
+) {
+  const handler = handlerRef.current;
+  if (!handler) return;
+
+  const normalizedEvent = withEventId(event, fallbackId);
+  const eventId = normalizedEvent.eventId;
+  if (eventId && processedEventIds.current.has(eventId)) return;
+  if (eventId) processedEventIds.current.add(eventId);
+  handler(normalizedEvent);
+}
+
 interface EventHandlerContextValue {
   handlerRef: MutableRefObject<EventHandler | null>;
 }
@@ -74,10 +100,10 @@ function LocalFallbackProvider({
   children: ReactNode;
   handlerRef: MutableRefObject<EventHandler | null>;
 }) {
+  const processedEventIds = useRef(new Set<string>());
   const send = useCallback(
     (event: PortalEvent) => {
-      const handler = handlerRef.current;
-      if (handler) handler(event);
+      deliverOnce(withEventId(event), handlerRef, processedEventIds);
     },
     [handlerRef]
   );
@@ -99,7 +125,8 @@ function ChannelListener({
   handlerRef: MutableRefObject<EventHandler | null>;
   onSendReady: (send: (event: PortalEvent) => void) => void;
 }) {
-  const processedRef = useRef(new Set<string>());
+  const processedMessageIds = useRef(new Set<string>());
+  const processedEventIds = useRef(new Set<string>());
 
   // CRITICAL: useChannel called unconditionally at top level
   const { send, messages } = useChannel<string>({
@@ -111,23 +138,23 @@ function ChannelListener({
   // Process incoming messages (including history)
   useEffect(() => {
     for (const msg of messages) {
-      if (processedRef.current.has(msg.id)) continue;
-      processedRef.current.add(msg.id);
+      if (processedMessageIds.current.has(msg.id)) continue;
+      processedMessageIds.current.add(msg.id);
       try {
         const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
         const event: PortalEvent = JSON.parse(content);
-        const handler = handlerRef.current;
-        if (handler) handler(event);
+        deliverOnce(event, handlerRef, processedEventIds, msg.id);
       } catch {
         // ignore non-JSON or malformed messages
       }
     }
   }, [messages, handlerRef]);
 
-  // Expose send function to parent
-  useEffect(() => {
+  // Expose send function to parent. useLayoutEffect guarantees this runs
+  // after the component commits, avoiding setState-during-render warnings.
+  useLayoutEffect(() => {
     onSendReady((event: PortalEvent) => {
-      send({ content: JSON.stringify(event) });
+      send({ content: JSON.stringify(withEventId(event)) });
     });
   }, [send, onSendReady]);
 
@@ -141,7 +168,9 @@ export function PortalBridge({
   children: ReactNode;
   roomId: string;
 }) {
-  const [portalSend, setPortalSend] = useState<((event: PortalEvent) => void) | null>(null);
+  const portalSendRef = useRef<((event: PortalEvent) => void) | null>(null);
+  const connectedRef = useRef(false);
+  const [, forceRender] = useState(0);
   const handlerRef = useRef<EventHandler | null>(null);
 
   const eventHandlerCtx = useMemo<EventHandlerContextValue>(
@@ -151,11 +180,22 @@ export function PortalBridge({
 
   const send = useCallback(
     (event: PortalEvent) => {
-      if (portalSend) {
-        portalSend(event);
+      portalSendRef.current?.(event);
+    },
+    []
+  );
+
+  const onSendReady = useCallback(
+    (nextSend: (event: PortalEvent) => void) => {
+      portalSendRef.current = nextSend;
+      if (!connectedRef.current) {
+        connectedRef.current = true;
+        // Schedule a single re-render so the connected flag propagates.
+        // We intentionally do NOT call setState during render.
+        queueMicrotask(() => forceRender((n) => n + 1));
       }
     },
-    [portalSend]
+    []
   );
 
   if (!HAS_KEY || !portalClient) {
@@ -171,11 +211,11 @@ export function PortalBridge({
   return (
     <PortalProvider client={portalClient}>
       <EventHandlerContext.Provider value={eventHandlerCtx}>
-        <PortalContext.Provider value={{ send, connected: !!portalSend }}>
+        <PortalContext.Provider value={{ send, connected: connectedRef.current }}>
           <ChannelListener
             roomId={roomId}
             handlerRef={handlerRef}
-            onSendReady={setPortalSend}
+            onSendReady={onSendReady}
           />
           {children}
         </PortalContext.Provider>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GameState, ChatMessage, Stroke, PortalEvent, PlayerKind } from "@/lib/types";
+import { GameState, ChatMessage, Stroke, PortalEvent, PlayerKind, PetdexAvatar } from "@/lib/types";
 import {
   createInitialState,
   pickThreeWords,
@@ -29,18 +29,101 @@ import GameCanvas from "@/components/GameCanvas";
 import ChatPanel from "@/components/ChatPanel";
 import GameUI from "@/components/GameUI";
 
+function PlayerAvatar({ avatar }: { avatar?: PetdexAvatar }) {
+  if (!avatar) return null;
+
+  return (
+    <span
+      role="img"
+      aria-label={avatar.displayName}
+      className="relative h-5 w-5 shrink-0 overflow-hidden rounded-sm text-center text-[9px] font-bold leading-5 text-white"
+      style={{ backgroundColor: avatar.dominantColor || "#3f3f46" }}
+    >
+      {avatar.displayName.slice(0, 1).toUpperCase()}
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 bg-left-top bg-no-repeat [background-size:800%_auto] [image-rendering:pixelated]"
+        style={{ backgroundImage: `url(${JSON.stringify(avatar.spritesheetUrl)})` }}
+      />
+    </span>
+  );
+}
+
+const BOT_DRAWINGS: Record<string, Stroke[]> = {
+  vercel: [
+    { points: [{ x: 250, y: 330 }, { x: 370, y: 135 }], color: "#18181b", width: 7, tool: "pen" },
+    { points: [{ x: 370, y: 135 }, { x: 490, y: 330 }], color: "#18181b", width: 7, tool: "pen" },
+    { points: [{ x: 490, y: 330 }, { x: 250, y: 330 }], color: "#18181b", width: 7, tool: "pen" },
+  ],
+  supabase: [
+    { points: [{ x: 330, y: 125 }, { x: 245, y: 275 }, { x: 345, y: 275 }], color: "#34d399", width: 8, tool: "pen" },
+    { points: [{ x: 410, y: 345 }, { x: 495, y: 195 }, { x: 395, y: 195 }], color: "#10b981", width: 8, tool: "pen" },
+    { points: [{ x: 345, y: 275 }, { x: 395, y: 195 }], color: "#065f46", width: 6, tool: "pen" },
+  ],
+  obsidian: [
+    { points: [{ x: 370, y: 115 }, { x: 480, y: 205 }, { x: 445, y: 345 }, { x: 370, y: 380 }, { x: 275, y: 310 }, { x: 260, y: 190 }, { x: 370, y: 115 }], color: "#8b5cf6", width: 7, tool: "pen" },
+    { points: [{ x: 260, y: 190 }, { x: 370, y: 245 }, { x: 480, y: 205 }], color: "#6d28d9", width: 6, tool: "pen" },
+    { points: [{ x: 370, y: 245 }, { x: 370, y: 380 }], color: "#6d28d9", width: 6, tool: "pen" },
+  ],
+};
+
+function getBotDrawing(word: string): Stroke[] {
+  return BOT_DRAWINGS[word.toLowerCase()] || [
+    { points: [{ x: 275, y: 150 }, { x: 465, y: 150 }, { x: 465, y: 340 }, { x: 275, y: 340 }, { x: 275, y: 150 }], color: "#0f766e", width: 7, tool: "pen" },
+    { points: [{ x: 310, y: 245 }, { x: 350, y: 285 }, { x: 430, y: 205 }], color: "#0f766e", width: 7, tool: "pen" },
+  ];
+}
+
+const TRY_ELEMENTS_LOGOS: Record<string, string> = {
+  vercel: "https://tryelements.dev/r/svg/vercel-logo.svg",
+  supabase: "https://tryelements.dev/r/svg/supabase-logo.svg",
+  obsidian: "https://tryelements.dev/r/svg/obsidian-logo.svg",
+};
+
+function CompanyLogo({ company }: { company: string }) {
+  const [failed, setFailed] = useState(false);
+  const logoUrl = TRY_ELEMENTS_LOGOS[company.toLowerCase()];
+
+  if (!logoUrl || failed) {
+    return (
+      <span
+        role="img"
+        aria-label={`Logo de ${company} no disponible`}
+        className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-xs font-black tracking-wider text-zinc-300"
+      >
+        {company.slice(0, 2).toUpperCase()}
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-white p-2 shadow-sm">
+      {/* TryElements serves these official marks as standalone SVG assets. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={logoUrl}
+        alt={`Logo de ${company}`}
+        className="h-full w-full object-contain"
+        onError={() => setFailed(true)}
+      />
+    </span>
+  );
+}
+
 export default function RoomPageClient({
   roomId,
   playerName,
   seats = [],
+  avatar,
 }: {
   roomId: string;
   playerName: string;
   seats?: { kind: PlayerKind; name?: string; config?: { provider: "openai"; model: string } }[];
+  avatar?: PetdexAvatar;
 }) {
   return (
     <PortalBridge roomId={roomId}>
-      <RoomInner roomId={roomId} playerName={playerName} seats={seats} />
+      <RoomInner roomId={roomId} playerName={playerName} seats={seats} avatar={avatar} />
     </PortalBridge>
   );
 }
@@ -49,24 +132,31 @@ function RoomInner({
   roomId,
   playerName,
   seats,
+  avatar,
 }: {
   roomId: string;
   playerName: string;
   seats: { kind: PlayerKind; name?: string; config?: { provider: "openai"; model: string } }[];
+  avatar?: PetdexAvatar;
 }) {
-  const [game, setGame] = useState<GameState>(() => createInitialState(roomId, playerName, seats));
+  const [game, setGame] = useState<GameState>(() => createInitialState(roomId, playerName, seats, avatar));
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chosenWord, setChosenWord] = useState<string | null>(null);
   const [phaseTimeLeft, setPhaseTimeLeft] = useState(0);
   const [localStrokes, setLocalStrokes] = useState<Stroke[]>([]);
   const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const phaseTimeRef = useRef(0);
+  const botRoundsStartedRef = useRef(new Set<string>());
   const gameRef = useRef(game);
   gameRef.current = game;
 
   const localPlayerId = game.players[0]?.id || "local-player";
   const isDrawer = isLocalPlayerDrawer(game, localPlayerId);
   const currentDrawer = getCurrentDrawer(game);
+  const currentDrawerId = currentDrawer?.id;
+  const currentDrawerKind = currentDrawer?.kind;
+  const roundStartedAt = game.roundState?.startedAt;
+  const roundWord = game.roundState?.word;
 
   const handleEvent = useCallback((event: PortalEvent) => {
     const g = gameRef.current;
@@ -87,6 +177,7 @@ function RoomInner({
       case "wordChosen": {
         const word = event.payload.word;
         setChosenWord(word);
+        setLocalStrokes([]);
         const drawer = getCurrentDrawer(g);
         if (drawer) {
           setGame((prev) => ({
@@ -238,12 +329,48 @@ function RoomInner({
     };
   }, [game.phase, portal]);
 
+  useEffect(() => {
+    if (
+      game.phase !== "drawing" ||
+      !roundStartedAt ||
+      !roundWord ||
+      !currentDrawerId ||
+      !currentDrawerKind
+    ) {
+      return;
+    }
+    if (currentDrawerKind === "human") return;
+
+    const roundKey = `${game.currentRound}:${currentDrawerId}:${roundStartedAt}`;
+    if (botRoundsStartedRef.current.has(roundKey)) return;
+    botRoundsStartedRef.current.add(roundKey);
+
+    const timers = getBotDrawing(roundWord).map((stroke, index) =>
+      setTimeout(() => {
+        portal.send({ type: "stroke", payload: stroke });
+      }, 700 + index * 750)
+    );
+
+    return () => {
+      for (const timer of timers) clearTimeout(timer);
+    };
+  }, [
+    currentDrawerId,
+    currentDrawerKind,
+    game.currentRound,
+    game.phase,
+    portal,
+    roundStartedAt,
+    roundWord,
+  ]);
+
   // Room-funded agent guess logic
   useEffect(() => {
     if (game.phase !== "drawing" || !game.roundState) return;
 
     const roomAgent = game.players.find((p) => p.kind === "room-agent");
     if (!roomAgent) return;
+    if (roomAgent.id === game.roundState.drawerId) return;
 
     const delay = 10000 + Math.random() * 30000;
     const t = setTimeout(async () => {
@@ -278,7 +405,8 @@ function RoomInner({
     if (game.phase !== "drawing" || !game.roundState) return;
 
     const nonRoomAgents = game.players.filter(
-      (p) => p.kind === "agent-byok" || (p.kind === "room-agent" && false)
+      (p) =>
+        p.kind === "agent-byok" && p.id !== game.roundState?.drawerId
     );
     if (nonRoomAgents.length === 0) return;
 
@@ -311,10 +439,6 @@ function RoomInner({
       type: "guess",
       payload: { playerId: localPlayer.id, content: text },
     });
-    setMessages((prev) => [
-      ...prev,
-      createChatMessage(localPlayer, text, true, false),
-    ]);
   };
 
   const handleStroke = (stroke: Stroke) => {
@@ -335,7 +459,8 @@ function RoomInner({
     setMessages([]);
     setLocalStrokes([]);
     setChosenWord(null);
-    const fresh = createInitialState(roomId, playerName, seats);
+    botRoundsStartedRef.current.clear();
+    const fresh = createInitialState(roomId, playerName, seats, avatar);
     setGame(fresh);
     setTimeout(() => {
       portal.send({
@@ -360,20 +485,95 @@ function RoomInner({
       />
 
       {game.phase === "choosing" && isDrawer && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/70">
-          <h2 className="mb-6 text-2xl font-bold">Elige una palabra</h2>
-          <div className="flex gap-4">
-            {game.wordsForRound.map((w) => (
-              <button
-                key={w}
-                onClick={() => handleChooseWord(w)}
-                className="rounded-xl bg-emerald-500 px-6 py-4 text-lg font-semibold text-white transition-transform active:scale-[0.98] hover:bg-emerald-400"
+        <div className="absolute inset-0 z-30 flex items-center justify-center overflow-y-auto bg-zinc-950/95 px-5 py-10 backdrop-blur-sm">
+          <div className="w-full max-w-5xl">
+            <div className="mb-8 flex flex-col gap-6 border-b border-zinc-800 pb-8 sm:flex-row sm:items-end sm:justify-between">
+              <div className="max-w-2xl">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.24em] text-emerald-400">
+                  Tu turno de dibujar
+                </p>
+                <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-5xl">
+                  Elige una empresa para dibujar
+                </h2>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-400 sm:text-base">
+                  Selecciona una opción antes de que termine el tiempo. Después tendrás que representarla en el lienzo.
+                </p>
+              </div>
+
+              <div
+                className="flex w-fit shrink-0 items-baseline gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-5 py-3"
+                aria-label={`${phaseTimeLeft} segundos restantes`}
               >
-                {w}
-              </button>
-            ))}
+                <span className="text-4xl font-black tabular-nums text-emerald-300">
+                  {phaseTimeLeft}
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">
+                  segundos
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {game.wordsForRound.map((word, index) => (
+                <button
+                  type="button"
+                  key={word}
+                  onClick={() => handleChooseWord(word)}
+                  className="group flex min-h-44 flex-col justify-between rounded-2xl border border-zinc-700 bg-zinc-900 p-6 text-left shadow-xl transition duration-200 hover:-translate-y-1 hover:border-emerald-400 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 active:translate-y-0"
+                >
+                  <span className="text-xs font-bold tracking-[0.2em] text-zinc-600 transition-colors group-hover:text-emerald-500">
+                    OPCIÓN {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="my-8 flex items-center gap-4">
+                    <CompanyLogo company={word} />
+                    <span className="text-2xl font-bold text-white sm:text-3xl">
+                      {word}
+                    </span>
+                  </span>
+                  <span className="flex items-center justify-between border-t border-zinc-800 pt-4 text-sm font-semibold text-zinc-400 transition-colors group-hover:text-emerald-300">
+                    Seleccionar
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12h14" />
+                      <path d="m13 6 6 6-6 6" />
+                    </svg>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6 flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/70 px-4 py-3 text-sm text-zinc-400">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="shrink-0 text-emerald-400"
+                aria-hidden="true"
+              >
+                <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span>
+                Esta elección es privada: solo tú, como dibujante, puedes ver estas opciones.
+              </span>
+            </div>
           </div>
-          <p className="mt-4 text-sm text-zinc-300">Tiempo: {phaseTimeLeft}s</p>
         </div>
       )}
 
@@ -419,8 +619,11 @@ function RoomInner({
           <div className="flex gap-6">
             {game.players.map((p) => (
               <div key={p.id} className="rounded-xl bg-zinc-800 px-6 py-3 text-center">
-                <div className="text-sm text-zinc-400">
-                  {p.name} {playerKindBadge(p.kind)}
+                <div className="flex items-center justify-center gap-1.5 text-sm text-zinc-400">
+                  <PlayerAvatar avatar={p.avatar} />
+                  <span>
+                    {p.name} {playerKindBadge(p.kind)}
+                  </span>
                 </div>
                 <div className="text-2xl font-bold">{game.scores[p.id] || 0}</div>
               </div>
@@ -458,6 +661,7 @@ function RoomInner({
                       <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
                     </svg>
                   ) : null}
+                  <PlayerAvatar avatar={p.avatar} />
                   <span>
                     {p.name} {playerKindBadge(p.kind)}
                   </span>

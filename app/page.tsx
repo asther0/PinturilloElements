@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type SeatOption = {
@@ -15,6 +15,88 @@ const SEAT_OPTIONS: SeatOption[] = [
   { kind: "agent-byok", label: "Agente BYOK", description: "Trae tu propia API key" },
 ];
 
+type PetdexPet = {
+  slug: string;
+  displayName: string;
+  spritesheetPath: string;
+  dominantColor?: string;
+};
+
+const PETDEX_BOUND = 18;
+const FALLBACK_PETS: PetdexPet[] = [
+  {
+    slug: "002",
+    displayName: "002",
+    spritesheetPath: "https://assets.petdex.dev/pets/002-5045a81e11b5/sprite.webp",
+    dominantColor: "#d32f2a",
+  },
+  {
+    slug: "01-researcher-2",
+    displayName: "01-Researcher",
+    spritesheetPath:
+      "https://assets.petdex.dev/pets/01-researcher-437bb6984c93/sprite.webp",
+    dominantColor: "#c9872a",
+  },
+  {
+    slug: "grinny",
+    displayName: "0Kai",
+    spritesheetPath:
+      "https://assets.petdex.dev/pets/grinny-5d3063bcef7d/sprite.webp",
+    dominantColor: "#cc34ac",
+  },
+];
+
+function parsePet(value: unknown): PetdexPet | null {
+  if (!value || typeof value !== "object") return null;
+
+  const pet = value as Record<string, unknown>;
+  if (
+    typeof pet.slug !== "string" ||
+    typeof pet.spritesheetPath !== "string"
+  ) {
+    return null;
+  }
+
+  try {
+    const spriteUrl = new URL(pet.spritesheetPath);
+    if (
+      spriteUrl.protocol !== "https:" ||
+      spriteUrl.hostname !== "assets.petdex.dev"
+    ) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return {
+    slug: pet.slug,
+    displayName:
+      typeof pet.displayName === "string" ? pet.displayName : pet.slug,
+    spritesheetPath: pet.spritesheetPath,
+    dominantColor:
+      typeof pet.dominantColor === "string" ? pet.dominantColor : undefined,
+  };
+}
+
+function PetdexSprite({ pet }: { pet: PetdexPet }) {
+  return (
+    <span
+      role="img"
+      aria-label={pet.displayName}
+      className="relative block aspect-[12/13] h-full max-h-full overflow-hidden rounded-sm bg-zinc-700 text-center text-xs font-bold leading-[4rem] text-white"
+      style={{ backgroundColor: pet.dominantColor }}
+    >
+      {pet.displayName.slice(0, 1).toUpperCase()}
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 bg-left-top bg-no-repeat [background-size:800%_auto] [image-rendering:pixelated]"
+        style={{ backgroundImage: `url(${JSON.stringify(pet.spritesheetPath)})` }}
+      />
+    </span>
+  );
+}
+
 export default function HomePage() {
   const [roomId, setRoomId] = useState("");
   const [name, setName] = useState("");
@@ -26,7 +108,94 @@ export default function HomePage() {
     apiKey: string;
   } | null>(null);
 
+  const [pets, setPets] = useState<PetdexPet[]>(FALLBACK_PETS);
+  const [petsLoading, setPetsLoading] = useState(true);
+  const [usingFallbackPets, setUsingFallbackPets] = useState(false);
+  const [selectedAvatarSlug, setSelectedAvatarSlug] = useState<string | null>(
+    FALLBACK_PETS[0].slug
+  );
+
   const router = useRouter();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/petdex-api/pets/search?limit=${PETDEX_BOUND}`, {
+      headers: { Accept: "application/json" },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Petdex responded with ${res.status}`);
+        return res.json() as Promise<unknown>;
+      })
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const rawPets =
+          data && typeof data === "object"
+            ? (data as Record<string, unknown>).pets
+            : undefined;
+        const list = (Array.isArray(rawPets) ? rawPets : [])
+          .slice(0, PETDEX_BOUND)
+          .map(parsePet)
+          .filter((pet): pet is PetdexPet => pet !== null);
+        if (list.length === 0) throw new Error("Petdex returned no usable pets");
+
+        setPets(list);
+        setSelectedAvatarSlug((current) =>
+          list.some((pet) => pet.slug === current) ? current : list[0].slug
+        );
+        setUsingFallbackPets(false);
+      })
+      .catch(() => {
+        if (!cancelled) setUsingFallbackPets(true);
+      })
+      .finally(() => {
+        if (!cancelled) setPetsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedAvatar = pets.find((p) => p.slug === selectedAvatarSlug);
+
+  const buildRoomParams = () => {
+    const params = new URLSearchParams();
+    params.set("name", name || "Jugador");
+    params.set("seats", seats.join(","));
+    if (selectedAvatar) {
+      params.set("avatarSlug", selectedAvatar.slug);
+      params.set("avatarDisplayName", selectedAvatar.displayName);
+      params.set("avatarSpritesheet", selectedAvatar.spritesheetPath);
+      if (selectedAvatar.dominantColor) {
+        params.set("avatarColor", selectedAvatar.dominantColor);
+      }
+    }
+    if (byokConfig) {
+      // Only metadata goes into URL, NEVER the API key
+      params.set("byokProvider", byokConfig.provider);
+      params.set("byokModel", byokConfig.model);
+    }
+    return params;
+  };
+
+  const handleCreate = () => {
+    const id = Math.random().toString(36).slice(2, 8);
+    const params = buildRoomParams();
+    router.push(`/room/${id}?${params.toString()}`);
+  };
+
+  const handleJoin = () => {
+    if (!roomId.trim()) return;
+    const params = buildRoomParams();
+    router.push(`/room/${roomId.trim()}?${params.toString()}`);
+  };
+
+  const handleJoinRandom = () => {
+    // Deterministic placeholder: generate a short random id.
+    // Labelled accurately because no directory backend exists yet.
+    const id = Math.random().toString(36).slice(2, 8);
+    const params = buildRoomParams();
+    router.push(`/room/${id}?${params.toString()}`);
+  };
 
   const addSeat = (kind: SeatOption["kind"]) => {
     if (kind === "agent-byok") {
@@ -37,24 +206,6 @@ export default function HomePage() {
 
   const removeSeat = (index: number) => {
     setSeats((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleCreate = () => {
-    const id = Math.random().toString(36).slice(2, 8);
-    const params = new URLSearchParams();
-    params.set("name", name || "Jugador");
-    params.set("seats", seats.join(","));
-    if (byokConfig) {
-      // Only metadata goes into URL, NEVER the API key
-      params.set("byokProvider", byokConfig.provider);
-      params.set("byokModel", byokConfig.model);
-    }
-    router.push(`/room/${id}?${params.toString()}`);
-  };
-
-  const handleJoin = () => {
-    if (!roomId.trim()) return;
-    router.push(`/room/${roomId.trim()}?name=${encodeURIComponent(name || "Jugador")}`);
   };
 
   return (
@@ -120,17 +271,46 @@ export default function HomePage() {
           </div>
         </div>
 
+        <div className="rounded-lg border border-zinc-700 bg-zinc-800 p-3">
+          <div className="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-zinc-400">
+            <span>Avatar</span>
+            {petsLoading && <span className="text-zinc-500">Cargando...</span>}
+            {!petsLoading && usingFallbackPets && (
+              <span className="text-amber-400">Catálogo de respaldo</span>
+            )}
+          </div>
+          <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
+            {pets.map((pet) => (
+              <button
+                type="button"
+                key={pet.slug}
+                onClick={() => setSelectedAvatarSlug(pet.slug)}
+                title={pet.displayName}
+                aria-label={`Elegir avatar ${pet.displayName}`}
+                aria-pressed={selectedAvatarSlug === pet.slug}
+                className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-md border-2 bg-zinc-900 p-1 transition-transform active:scale-[0.96] ${
+                  selectedAvatarSlug === pet.slug
+                    ? "border-emerald-400"
+                    : "border-transparent hover:border-zinc-500"
+                }`}
+              >
+                <PetdexSprite pet={pet} />
+              </button>
+            ))}
+          </div>
+        </div>
+
         <button
           onClick={handleCreate}
           className="rounded-lg bg-emerald-500 px-4 py-3 font-semibold text-white transition-transform active:scale-[0.98] hover:bg-emerald-400"
         >
-          Crear Sala
+          Crear Sala Publica
         </button>
 
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="ID de sala"
+            placeholder="Codigo de sala"
             value={roomId}
             onChange={(e) => setRoomId(e.target.value)}
             className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-white placeholder-zinc-500 outline-none focus:border-emerald-500"
@@ -142,6 +322,13 @@ export default function HomePage() {
             Unirse
           </button>
         </div>
+
+        <button
+          onClick={handleJoinRandom}
+          className="rounded-lg border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-[0.98] hover:bg-zinc-700"
+        >
+          Unirse a sala aleatoria (genera ID nuevo)
+        </button>
       </div>
 
       {showByokModal && (
