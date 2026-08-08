@@ -117,9 +117,7 @@ The repo ships an internal MVP: a Next.js 15 + React 19 web app
 that runs the full Skribbl-style loop with Portal as the realtime
 transport, a built-in Bot that plays as a second guesser, and a
 hard-coded 3-item TryElements validation set (Vercel, Supabase,
-Obsidian). The earlier single-player drawing prototype in
-`prototype/` is kept for reference only and is not part of the
-MVP flow.
+Obsidian).
 
 What is currently shipped:
 
@@ -245,18 +243,11 @@ person on the network, configure a Portal key.
 |  +- GameCanvas.tsx    Canvas, pen, eraser, palette, widths.
 |  +- GameUI.tsx        Header (round, drawer, timer).
 |  +- ChatPanel.tsx     Players, chat, guess input.
-|  +- DrawingCanvas.tsx, DrawingTools.tsx, GameHeader.tsx,
-|    PlayerList.tsx, WordPicker.tsx -- small UI helpers.
 +- lib/                 Game logic and Portal event types.
 |  +- gameLogic.ts      Phases, scoring, word picker, agent.
 |  +- types.ts          Player, GameState, Stroke, PortalEvent.
-+- prototype/           Earlier single-player HTML prototype
-|                       (reference only; not served by the MVP).
 +- .vault-context/      Local symlinks to the project vault
                         (gitignored).
 ```
 
-The Next.js app under `app/` and `components/` is the MVP. The
-`prototype/` folder is the earlier single-player drawing
-prototype; it is not served by `bun run dev` and is kept only for
-reference.
+The Next.js app under `app/` and `components/` is the MVP.
