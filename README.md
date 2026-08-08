@@ -99,15 +99,13 @@ systems.
   Portal through `@portalsdk/core` and `@portalsdk/react`, and
   falls back to a single-process in-memory bus when no API key is
   configured (see Running the MVP below).
-- [TryElements](https://www.tryelements.dev/api/logos/all) -- the
+- [TryElements](https://github.com/crafter-station/elements) -- the
   catalog of company entries the word picker draws from. Each
   entry bundles the company name, the official reference image
   and the brand metadata. The MVP validation set is Vercel,
-  Supabase and Obsidian (see the
-  [catalog index](https://www.tryelements.dev/r/logos-index.json)
-  for the full list of entries). The catalog is currently a
-  hard-coded 3-item list in `lib/gameLogic.ts`; the full API
-  integration is not wired in the MVP.
+  Supabase and Obsidian. The catalog is currently a hard-coded
+  3-item list in `lib/gameLogic.ts`; the full integration is not
+  wired in the MVP.
 - [Petdex](https://github.com/crafter-station/petdex) -- the avatar
   system. Every player is intended to be represented by a Petdex
   entry shown next to chat lines and on the leaderboard. Petdex is
