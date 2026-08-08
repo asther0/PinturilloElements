@@ -21,6 +21,7 @@ import {
   getCurrentDrawer,
   playerKindBadge,
   makeHumanPlayer,
+  makeRoomAgentPlayer,
 } from "@/lib/gameLogic";
 import {
   PortalBridge,
@@ -92,6 +93,19 @@ const TRY_ELEMENTS_LOGOS: Record<string, string> = {
   supabase: "https://tryelements.dev/r/svg/supabase-logo.svg",
   obsidian: "https://tryelements.dev/r/svg/obsidian-logo.svg",
 };
+
+const PETDEX_AVATARS: PetdexAvatar[] = [
+  { slug: "nezukocoder", displayName: "NezukoCoder", spritesheetUrl: "https://assets.petdex.dev/pets/nezukocoder-7d766f7c2597/sprite.webp", dominantColor: "#c65922" },
+  { slug: "shinchan", displayName: "Shinchan", spritesheetUrl: "https://assets.petdex.dev/pets/shinchan-154a84d8ff3c/sprite.webp", dominantColor: "#de1f1a" },
+  { slug: "capvolt", displayName: "Capvolt", spritesheetUrl: "https://assets.petdex.dev/pets/capvolt-7be64ef6cfa2/sprite.webp", dominantColor: "#f7d605" },
+  { slug: "doraemon", displayName: "Doraemon", spritesheetUrl: "https://assets.petdex.dev/pets/doraemon-58b12a5012e0/sprite.webp", dominantColor: "#048ae1" },
+  { slug: "lulu-capybara", displayName: "Lulu", spritesheetUrl: "https://assets.petdex.dev/pets/lulu-capybara-9f9107636ecc/sprite.webp", dominantColor: "#a67c52" },
+  { slug: "qqpet-codex", displayName: "QQPet", spritesheetUrl: "https://assets.petdex.dev/pets/qqpet-codex-pending-6c6a5a48a512/sprite.png", dominantColor: "#3b82f6" },
+];
+
+function getAgentAvatar(index: number): PetdexAvatar {
+  return PETDEX_AVATARS[index % PETDEX_AVATARS.length];
+}
 
 function CompanyLogo({ company }: { company: string }) {
   const [failed, setFailed] = useState(false);
@@ -171,7 +185,16 @@ function RoomInner({
     if (!isHost && roomConfig.mode === "mixed") {
       return { ...initial, players: [], scores: {} };
     }
-    return initial;
+    let agentIndex = 0;
+    const players = initial.players.map((p) => {
+      if (p.kind === "room-agent") {
+        const idx = agentIndex++;
+        const agentAvatar = getAgentAvatar(idx);
+        return { ...p, name: agentAvatar.displayName, avatar: agentAvatar };
+      }
+      return p;
+    });
+    return { ...initial, players };
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chosenWord, setChosenWord] = useState<string | null>(null);
@@ -180,11 +203,24 @@ function RoomInner({
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [roomFull, setRoomFull] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editDraft, setEditDraft] = useState<{
+    mode: "mixed" | "agents-only";
+    humanCapacity: number;
+    agentCount: number;
+    difficulty: "easy" | "medium" | "hard";
+  }>({
+    mode: roomConfig.mode,
+    humanCapacity: roomConfig.humanCapacity,
+    agentCount: roomConfig.agentCount,
+    difficulty: roomConfig.difficulty || "medium",
+  });
   const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const phaseTimeRef = useRef(0);
   const botRoundsStartedRef = useRef(new Set<string>());
   const gameRef = useRef(game);
   const hasAnnouncedJoinRef = useRef(false);
+  const lastLobbySyncSignatureRef = useRef<string | null>(null);
   gameRef.current = game;
 
   const isDrawer = isLocalPlayerDrawer(game, localPlayerId);
@@ -362,19 +398,29 @@ function RoomInner({
   // The host is the authority for the lobby roster. Re-publish its initial
   // state once connected and every accepted roster update.
   useEffect(() => {
-    if (!isHost || !portal.connected || game.phase !== "lobby") return;
+    if (!isHost || game.phase !== "lobby") return;
+    if (!portal.connected) {
+      lastLobbySyncSignatureRef.current = null;
+      return;
+    }
+    const payload = {
+      players: game.players,
+      hostId: localPlayerId,
+      roomConfig: game.roomConfig,
+    };
+    const signature = JSON.stringify(payload);
+    if (lastLobbySyncSignatureRef.current === signature) return;
+
+    lastLobbySyncSignatureRef.current = signature;
     portal.send({
       type: "lobbySync",
-      payload: {
-        players: game.players,
-        hostId: localPlayerId,
-        roomConfig: game.roomConfig,
-      },
+      payload,
     });
   }, [game.phase, game.players, game.roomConfig, isHost, localPlayerId, portal]);
 
   // In a live Portal room, detailed presence is the source of truth for human
-  // connections. Agents are room-owned and deliberately remain in the roster.
+  // connections. Agents and the designated host are room-owned and remain in
+  // the roster even if they are missing from a presence snapshot.
   useEffect(() => {
     if (!isHost || game.phase !== "lobby" || !portal.detailedPresence) return;
     const connectedHumanIds = new Set(
@@ -386,7 +432,10 @@ function RoomInner({
     );
     setGame((prev) => {
       const players = prev.players.filter(
-        (player) => player.kind !== "human" || connectedHumanIds.has(player.id)
+        (player) =>
+          player.kind !== "human" ||
+          player.id === prev.hostId ||
+          connectedHumanIds.has(player.id)
       );
       if (players.length === prev.players.length) return prev;
       const scores = Object.fromEntries(
@@ -624,6 +673,60 @@ function RoomInner({
     });
   };
 
+  const openEditModal = () => {
+    const cfg = gameRef.current.roomConfig;
+    setEditDraft({
+      mode: cfg.mode,
+      humanCapacity: cfg.humanCapacity,
+      agentCount: cfg.agentCount,
+      difficulty: cfg.difficulty || "medium",
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveRoomConfig = () => {
+    if (!isHost || game.phase !== "lobby") return;
+    const newConfig: RoomConfig = {
+      mode: editDraft.mode,
+      humanCapacity: editDraft.mode === "mixed" ? editDraft.humanCapacity : 0,
+      agentCount: editDraft.agentCount,
+      ...(editDraft.mode === "agents-only" ? { difficulty: editDraft.difficulty } : {}),
+    };
+    setGame((prev) => {
+      const humans = prev.players.filter((p) => p.kind === "human");
+      const byokAgents = prev.players.filter((p) => p.kind === "agent-byok");
+      const existingRoomAgents = new Map(prev.players.filter((p) => p.kind === "room-agent").map((p) => [p.id, p]));
+      const newRoomAgents: Player[] = [];
+      for (let i = 0; i < editDraft.agentCount; i++) {
+        const id = `room-agent-${i}`;
+        const existing = existingRoomAgents.get(id);
+        const agentAvatar = getAgentAvatar(i);
+        if (existing) {
+          newRoomAgents.push({ ...existing, name: agentAvatar.displayName });
+        } else {
+          newRoomAgents.push({ ...makeRoomAgentPlayer(id, agentAvatar.displayName), avatar: agentAvatar });
+        }
+      }
+      let players: Player[];
+      if (editDraft.mode === "agents-only") {
+        players = [...byokAgents, ...newRoomAgents];
+      } else {
+        const hostHuman = humans.find((p) => p.id === localPlayerId);
+        const otherHumans = humans.filter((p) => p.id !== localPlayerId);
+        const newHumans = hostHuman
+          ? [hostHuman, ...otherHumans]
+          : [makeHumanPlayer(localPlayerId, playerName, avatar), ...otherHumans];
+        players = [...newHumans, ...byokAgents, ...newRoomAgents];
+      }
+      const scores: Record<string, number> = {};
+      for (const p of players) {
+        scores[p.id] = prev.scores[p.id] || 0;
+      }
+      return { ...prev, roomConfig: newConfig, players, scores };
+    });
+    setIsEditModalOpen(false);
+  };
+
   const totalSeats = game.players.length;
   const canStart = totalSeats >= 2;
 
@@ -675,6 +778,120 @@ function RoomInner({
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-zinc-900 text-white">
+      {isEditModalOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 px-4 py-10 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white">Editar sala</h2>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="rounded-lg p-1 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
+                aria-label="Cerrar"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Modo</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditDraft((d) => ({ ...d, mode: "mixed" }))}
+                  className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${editDraft.mode === "mixed" ? "border-sky-500 bg-sky-500/10 text-sky-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"}`}
+                >
+                  Mixta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditDraft((d) => ({ ...d, mode: "agents-only" }))}
+                  className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${editDraft.mode === "agents-only" ? "border-amber-500 bg-amber-500/10 text-amber-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"}`}
+                >
+                  Solo agentes
+                </button>
+              </div>
+            </div>
+
+            {editDraft.mode === "mixed" && (
+              <div className="mb-4">
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Capacidad humana</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[2, 4, 6, 8].map((cap) => (
+                    <button
+                      key={cap}
+                      type="button"
+                      onClick={() => setEditDraft((d) => ({ ...d, humanCapacity: cap }))}
+                      className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${editDraft.humanCapacity === cap ? "border-sky-500 bg-sky-500/10 text-sky-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"}`}
+                    >
+                      {cap}
+                    </button>
+                  ))}
+                </div>
+                {editDraft.humanCapacity < humanCount && (
+                  <p className="mt-2 text-xs text-red-400">La capacidad no puede ser menor que los humanos actuales ({humanCount}).</p>
+                )}
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Agentes</label>
+              <div className="grid grid-cols-6 gap-2">
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setEditDraft((d) => ({ ...d, agentCount: n }))}
+                    className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${editDraft.agentCount === n ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"}`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {editDraft.mode === "agents-only" && (
+              <div className="mb-4">
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Dificultad</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["easy", "medium", "hard"] as const).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setEditDraft((prev) => ({ ...prev, difficulty: d }))}
+                      className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${editDraft.difficulty === d ? "border-amber-500 bg-amber-500/10 text-amber-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"}`}
+                    >
+                      {difficultyLabel(d)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveRoomConfig}
+                disabled={editDraft.mode === "mixed" && editDraft.humanCapacity < humanCount}
+                className="flex-1 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-zinc-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {game.phase === "lobby" && (
         <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-10">
           <div className="w-full max-w-md">
@@ -807,7 +1024,7 @@ function RoomInner({
                           {p.name}
                           {p.kind !== "human" && (
                             <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                              {playerKindBadge(p.kind)}
+                              {p.kind === "room-agent" ? "AGENTE" : playerKindBadge(p.kind)}
                             </span>
                           )}
                         </div>
@@ -842,6 +1059,17 @@ function RoomInner({
                 <div className="mt-6 border-t border-zinc-800 pt-5">
                   <button
                     type="button"
+                    onClick={openEditModal}
+                    className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-emerald-500 hover:bg-zinc-700"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                      <path d="m15 5 3 3" />
+                    </svg>
+                    Editar sala
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleStartGame}
                     disabled={!canStart}
                     className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-base font-bold text-zinc-950 shadow-lg shadow-emerald-950/40 transition hover:bg-emerald-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 disabled:shadow-none"
@@ -863,6 +1091,19 @@ function RoomInner({
                   Esperando a que el host empiece la partida.
                 </p>
               )}
+
+              <div className="mt-4 text-center">
+                <Link
+                  href="/"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-emerald-500 hover:bg-zinc-700"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                    <polyline points="9 22 9 12 15 12 15 22" />
+                  </svg>
+                  Volver al inicio
+                </Link>
+              </div>
             </div>
           </div>
         </div>
