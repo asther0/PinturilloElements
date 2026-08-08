@@ -65,6 +65,20 @@ function safePresenceMetadata(metadata?: PortalPresenceMetadata): PortalPresence
   return { playerId, playerKind: metadata.playerKind };
 }
 
+interface PresenceParticipant {
+  id?: string;
+  username?: string;
+  anon?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+function presenceSignature(presence: DetailedPresence | undefined): string {
+  if (!presence) return "";
+  const participants = (presence as unknown as { participants?: PresenceParticipant[] }).participants || [];
+  const sorted = [...participants].sort((a, b) => String(a.id ?? "").localeCompare(String(b.id ?? "")));
+  return JSON.stringify(sorted.map((p) => [p.id, p.username, p.anon, p.metadata]));
+}
+
 interface EventHandlerContextValue {
   handlerRef: MutableRefObject<EventHandler | null>;
   register: (handler: EventHandler) => void;
@@ -124,6 +138,7 @@ function ChannelListener({
   onPresenceChange: (presence: DetailedPresence | undefined) => void;
 }) {
   const processedMessageIds = useRef(new Set<string>());
+  const lastPresenceSigRef = useRef<string>("");
   const safeMetadata = useMemo(() => safePresenceMetadata(metadata), [metadata]);
 
   // CRITICAL: useChannel called unconditionally at top level
@@ -161,7 +176,12 @@ function ChannelListener({
   }, [onConnectionChange, status]);
 
   useEffect(() => {
-    onPresenceChange(presence?.kind === "detailed" ? presence : undefined);
+    const current = presence?.kind === "detailed" ? presence : undefined;
+    const sig = presenceSignature(current);
+    if (sig !== lastPresenceSigRef.current) {
+      lastPresenceSigRef.current = sig;
+      onPresenceChange(current);
+    }
   }, [onPresenceChange, presence]);
 
   return null;
