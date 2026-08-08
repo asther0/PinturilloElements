@@ -348,17 +348,6 @@ export default function HomePage() {
         selectedAvatar,
         ...curatedPets.filter((pet) => pet.slug !== selectedAvatar.slug),
       ].slice(0, PETDEX_CURATED_COUNT);
-  const selectedNearbyIndex = Math.max(
-    0,
-    nearbyPets.findIndex((pet) => pet.slug === selectedAvatar.slug)
-  );
-
-  const selectAdjacentAvatar = (direction: -1 | 1) => {
-    if (nearbyPets.length === 0) return;
-    const nextIndex =
-      (selectedNearbyIndex + direction + nearbyPets.length) % nearbyPets.length;
-    setSelectedAvatar(nearbyPets[nextIndex]);
-  };
 
   return (
     <main className="relative flex h-screen flex-col items-center overflow-x-hidden overflow-y-auto px-4 py-10 text-white">
@@ -400,30 +389,14 @@ export default function HomePage() {
             </div>
 
             <div className="mt-3 text-center">
-              <div className="relative mx-auto flex h-20 w-20 items-center justify-center">
-                <button
-                  type="button"
-                  onClick={() => selectAdjacentAvatar(-1)}
-                  aria-label="Avatar anterior"
-                  className="absolute -left-9 grid h-8 w-8 place-items-center rounded-full bg-zinc-800/90 text-zinc-400 shadow-lg shadow-black/30 transition hover:bg-zinc-700 hover:text-emerald-300 active:scale-95"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="m14 18-6-6 6-6" />
-                  </svg>
-                </button>
-                <div className="petdex-avatar-float flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-zinc-900 p-1 shadow-lg shadow-emerald-950/30 ring-1 ring-emerald-400/35">
+              <div className="relative mx-auto h-20 w-20">
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -inset-2 rounded-full bg-emerald-400/20 blur-lg"
+                />
+                <div className="petdex-avatar-float relative flex h-full w-full items-center justify-center overflow-hidden rounded-lg border border-emerald-500/50 bg-zinc-900 p-1 shadow-lg shadow-emerald-950/30">
                   <PetdexSprite pet={selectedAvatar} />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => selectAdjacentAvatar(1)}
-                  aria-label="Avatar siguiente"
-                  className="absolute -right-9 grid h-8 w-8 place-items-center rounded-full bg-zinc-800/90 text-zinc-400 shadow-lg shadow-black/30 transition hover:bg-zinc-700 hover:text-emerald-300 active:scale-95"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="m10 18 6-6-6-6" />
-                  </svg>
-                </button>
               </div>
               <div className="mt-1.5 truncate text-xs font-medium text-zinc-400">
                 {selectedAvatar.displayName}
@@ -442,7 +415,7 @@ export default function HomePage() {
                     aria-pressed={selectedAvatar.slug === pet.slug}
                     className={`flex aspect-square items-center justify-center overflow-hidden rounded-lg border p-1 transition active:scale-[0.96] ${
                       selectedAvatar.slug === pet.slug
-                        ? "border-emerald-400 bg-emerald-500/10"
+                        ? "border-emerald-500/50 bg-emerald-500/10"
                         : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"
                     }`}
                   >
