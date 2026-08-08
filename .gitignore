@@ -6,6 +6,9 @@
 
 # Next.js
 /.next/
+/.next-dev/
+/.next-build/
+/.next-cache-*/
 /out/
 
 # Dependencies
