@@ -672,8 +672,11 @@ function RoomInner({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            strokes: game.roundState?.strokes || [],
-            candidates: game.wordsForRound.length ? game.wordsForRound : pickThreeWords(),
+            strokes: gameRef.current.roundState?.strokes || [],
+            candidates: gameRef.current.wordsForRound.length
+              ? gameRef.current.wordsForRound
+              : pickThreeWords(),
+            difficulty: gameRef.current.roomConfig.difficulty || "medium",
           }),
         });
         const data = await res.json();
