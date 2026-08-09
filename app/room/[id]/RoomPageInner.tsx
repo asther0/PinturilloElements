@@ -5,9 +5,8 @@ import { useSearchParams } from "next/navigation";
 import RoomPageClient from "@/components/RoomPageClient";
 import JoinRoomProfile from "@/components/JoinRoomProfile";
 import { LOGO_COLLECTIONS } from "@/lib/gameLogic";
+import { hostStorageKey } from "@/lib/roomId";
 import type { PetdexAvatar, RoomConfig, LateJoinPolicy } from "@/lib/types";
-
-const HOST_STORAGE_PREFIX = "pinturillo-host:";
 
 function readAvatar(searchParams: URLSearchParams): PetdexAvatar | undefined {
   const slug = searchParams.get("avatarSlug")?.slice(0, 100);
@@ -93,7 +92,15 @@ export default function RoomPageInner({ roomId }: { roomId: string }) {
   useEffect(() => {
     let host = false;
     try {
-      host = sessionStorage.getItem(`${HOST_STORAGE_PREFIX}${roomId}`) === "1";
+      const canonicalKey = hostStorageKey(roomId);
+      host = sessionStorage.getItem(canonicalKey) === "1";
+
+      // Room creation used lowercase IDs before canonicalization. Migrate the
+      // marker on first read so existing lowercase host URLs keep their role.
+      if (!host && sessionStorage.getItem(`pinturillo-host:${roomId.toLowerCase()}`) === "1") {
+        sessionStorage.setItem(canonicalKey, "1");
+        host = true;
+      }
     } catch {
       host = false;
     }

@@ -13,8 +13,10 @@ import {
   MutableRefObject,
 } from "react";
 import { PortalEvent, PortalPresenceMetadata } from "@/lib/types";
+import { roomChannelId } from "@/lib/roomId";
 import { PortalProvider, useChannel } from "@portalsdk/react";
-import { DetailedPresence, Portal, Message } from "@portalsdk/core";
+import type { ChannelStatus, DetailedPresence, PortalError } from "@portalsdk/core";
+import { Portal, Message } from "@portalsdk/core";
 
 const API_KEY = process.env.NEXT_PUBLIC_PORTAL_API_KEY;
 const HAS_KEY = Boolean(API_KEY && API_KEY !== "your_portal_api_key_here");
@@ -27,6 +29,8 @@ interface PortalContextValue {
   send: (event: PortalEvent, recipientId?: string) => void;
   connected: boolean;
   detailedPresence?: DetailedPresence;
+  connectionStatus?: ChannelStatus;
+  connectionError?: { code: string; message: string };
 }
 
 const PortalContext = createContext<PortalContextValue>({
@@ -129,6 +133,8 @@ function ChannelListener({
   deliver,
   onSendReady,
   onConnectionChange,
+  onConnectionStatusChange,
+  onConnectionError,
   onPresenceChange,
 }: {
   roomId: string;
@@ -136,6 +142,8 @@ function ChannelListener({
   deliver: (event: PortalEvent, fallbackId?: string) => void;
   onSendReady: (send: (event: PortalEvent, recipientId?: string) => void) => void;
   onConnectionChange: (connected: boolean) => void;
+  onConnectionStatusChange: (status: ChannelStatus) => void;
+  onConnectionError: (error: PortalError) => void;
   onPresenceChange: (presence: DetailedPresence | undefined) => void;
 }) {
   const processedMessageIds = useRef(new Set<string>());
@@ -167,10 +175,11 @@ function ChannelListener({
 
   // CRITICAL: useChannel called unconditionally at top level
   const { send, presence, status } = useChannel<string>({
-    channelId: `room:${roomId}`,
+    channelId: roomChannelId(roomId),
     metadata: { game: "pinturilloelements", version: "0.1.0", ...safeMetadata },
     history: "none",
     onMessage: handleMessage,
+    onError: onConnectionError,
   });
 
   // Expose send function to parent. useLayoutEffect guarantees this runs
@@ -194,7 +203,8 @@ function ChannelListener({
 
   useEffect(() => {
     onConnectionChange(status === "ready");
-  }, [onConnectionChange, status]);
+    onConnectionStatusChange(status);
+  }, [onConnectionChange, onConnectionStatusChange, status]);
 
   useEffect(() => {
     const current = presence?.kind === "detailed" ? presence : undefined;
@@ -220,6 +230,8 @@ export function PortalBridge({
   const portalSendRef = useRef<((event: PortalEvent, recipientId?: string) => void) | null>(null);
   const [connected, setConnected] = useState(false);
   const [detailedPresence, setDetailedPresence] = useState<DetailedPresence>();
+  const [connectionStatus, setConnectionStatus] = useState<ChannelStatus>();
+  const [connectionError, setConnectionError] = useState<{ code: string; message: string }>();
   const handlerRef = useRef<EventHandler | null>(null);
   const pendingEventsRef = useRef<PortalEvent[]>([]);
   const pendingOutboundRef = useRef<{ event: PortalEvent; recipientId?: string }[]>([]);
@@ -272,6 +284,15 @@ export function PortalBridge({
     }
   }, []);
 
+  const onConnectionStatusChange = useCallback((status: ChannelStatus) => {
+    setConnectionStatus(status);
+    if (status === "ready") setConnectionError(undefined);
+  }, []);
+
+  const onConnectionError = useCallback((error: PortalError) => {
+    setConnectionError({ code: error.code, message: error.message });
+  }, []);
+
   if (!HAS_KEY || !portalClient) {
     return (
       <EventHandlerContext.Provider value={eventHandlerCtx}>
@@ -285,13 +306,15 @@ export function PortalBridge({
   return (
     <PortalProvider client={portalClient}>
       <EventHandlerContext.Provider value={eventHandlerCtx}>
-        <PortalContext.Provider value={{ send, connected, detailedPresence }}>
+        <PortalContext.Provider value={{ send, connected, detailedPresence, connectionStatus, connectionError }}>
           <ChannelListener
             roomId={roomId}
             metadata={presenceMetadata}
             deliver={deliver}
             onSendReady={onSendReady}
             onConnectionChange={setConnected}
+            onConnectionStatusChange={onConnectionStatusChange}
+            onConnectionError={onConnectionError}
             onPresenceChange={setDetailedPresence}
           />
           {children}

@@ -1,8 +1,10 @@
 import { Suspense } from "react";
+import { canonicalRoomId } from "@/lib/roomId";
 import RoomPageInner from "./RoomPageInner";
 
 export default async function RoomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const roomId = canonicalRoomId(id);
   return (
     <Suspense
       fallback={
@@ -24,7 +26,7 @@ export default async function RoomPage({ params }: { params: Promise<{ id: strin
         </main>
       }
     >
-      <RoomPageInner roomId={id} />
+      <RoomPageInner roomId={roomId} />
     </Suspense>
   );
 }

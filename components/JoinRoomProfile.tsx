@@ -9,6 +9,7 @@ import {
 } from "@/lib/petdexCatalog";
 import { petdexSpriteSrc } from "@/lib/petdexImage";
 import { playPetdexSound } from "@/lib/petdexSound";
+import { canonicalRoomId } from "@/lib/roomId";
 
 type PetdexPet = PetdexCatalogPet;
 
@@ -94,7 +95,7 @@ export default function JoinRoomProfile({ roomId }: { roomId: string }) {
       avatarSpritesheet: selectedPet.spritesheetPath,
     });
     if (selectedPet.dominantColor) params.set("avatarColor", selectedPet.dominantColor);
-    router.replace(`/room/${encodeURIComponent(roomId)}?${params.toString()}`);
+    router.replace(`/room/${encodeURIComponent(canonicalRoomId(roomId))}?${params.toString()}`);
   };
 
   return (

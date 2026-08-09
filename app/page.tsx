@@ -10,9 +10,9 @@ import {
 } from "@/lib/petdexCatalog";
 import { petdexSpriteSrc } from "@/lib/petdexImage";
 import { playPetdexSound } from "@/lib/petdexSound";
+import { canonicalRoomId, hostStorageKey } from "@/lib/roomId";
 
 type PetdexPet = PetdexCatalogPet;
-const HOST_STORAGE_PREFIX = "pinturillo-host:";
 
 function shuffleArray<T>(array: T[]): T[] {
   const result = [...array];
@@ -124,8 +124,8 @@ export default function HomePage() {
   };
 
   const handleCreate = () => {
-    const id = Math.random().toString(36).slice(2, 8);
-    sessionStorage.setItem(`${HOST_STORAGE_PREFIX}${id}`, "1");
+    const id = canonicalRoomId(Math.random().toString(36).slice(2, 8));
+    sessionStorage.setItem(hostStorageKey(id), "1");
     const params = buildRoomParams();
     params.set("capacity", String(humanCapacity));
     params.set("rounds", String(createRounds));
@@ -137,13 +137,14 @@ export default function HomePage() {
 
   const handleJoin = () => {
     if (!roomId.trim()) return;
+    const id = canonicalRoomId(roomId);
     const params = buildRoomParams();
-    router.push(`/room/${roomId.trim()}?${params.toString()}`);
+    router.push(`/room/${encodeURIComponent(id)}?${params.toString()}`);
   };
 
   const handleJoinRandom = () => {
-    const id = Math.random().toString(36).slice(2, 8);
-    sessionStorage.setItem(`${HOST_STORAGE_PREFIX}${id}`, "1");
+    const id = canonicalRoomId(Math.random().toString(36).slice(2, 8));
+    sessionStorage.setItem(hostStorageKey(id), "1");
     const params = buildRoomParams();
     params.set("capacity", "6");
     params.set("rounds", "3");
