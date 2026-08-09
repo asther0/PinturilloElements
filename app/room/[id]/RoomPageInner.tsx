@@ -42,7 +42,12 @@ function readAvatar(searchParams: URLSearchParams): PetdexAvatar | undefined {
 }
 
 function readRoomConfig(searchParams: URLSearchParams): RoomConfig {
-  const countParam = parseInt(searchParams.get("count") || "6", 10);
+  // `capacity` is the current room creation parameter. Keep `count` as a
+  // backwards-compatible join-link alias, but never let it override capacity.
+  const countParam = parseInt(
+    searchParams.get("capacity") || searchParams.get("count") || "6",
+    10
+  );
   const humanCount = countParam >= 2 && countParam <= 8 ? countParam : 6;
 
   const roundsParam = parseInt(searchParams.get("rounds") || "3", 10);
