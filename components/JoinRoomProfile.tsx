@@ -8,6 +8,7 @@ import {
   type PetdexCatalogPet,
 } from "@/lib/petdexCatalog";
 import { petdexSpriteSrc } from "@/lib/petdexImage";
+import { playPetdexSound } from "@/lib/petdexSound";
 
 type PetdexPet = PetdexCatalogPet;
 
@@ -148,7 +149,10 @@ export default function JoinRoomProfile({ roomId }: { roomId: string }) {
             <button
               key={pet.slug}
               type="button"
-              onClick={() => setSelectedPet(pet)}
+              onClick={() => {
+                setSelectedPet(pet);
+                playPetdexSound({ spritesheetUrl: pet.spritesheetPath });
+              }}
               aria-label={`Elegir ${pet.displayName}`}
               aria-pressed={selectedPet.slug === pet.slug}
               className={`relative aspect-square overflow-hidden border-2 bg-[#E7E2D4] p-1 transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none ${selectedPet.slug === pet.slug ? "border-[#7EB6FF] shadow-[3px_3px_0_#111111]" : "border-[#111111] hover:bg-[#FFFDF7]"}`}

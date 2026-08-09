@@ -9,6 +9,7 @@ import {
   type PetdexCatalogPet,
 } from "@/lib/petdexCatalog";
 import { petdexSpriteSrc } from "@/lib/petdexImage";
+import { playPetdexSound } from "@/lib/petdexSound";
 
 type PetdexPet = PetdexCatalogPet;
 const HOST_STORAGE_PREFIX = "pinturillo-host:";
@@ -228,7 +229,10 @@ export default function HomePage() {
                   <button
                     type="button"
                     key={pet.slug}
-                    onClick={() => setSelectedAvatar(pet)}
+                    onClick={() => {
+                      setSelectedAvatar(pet);
+                      playPetdexSound({ spritesheetUrl: pet.spritesheetPath });
+                    }}
                     title={pet.displayName}
                     aria-label={`Elegir avatar ${pet.displayName}`}
                     aria-pressed={selectedAvatar.slug === pet.slug}
@@ -372,6 +376,7 @@ export default function HomePage() {
                       key={pet.slug}
                       onClick={() => {
                         setSelectedAvatar(pet);
+                        playPetdexSound({ spritesheetUrl: pet.spritesheetPath });
                         setShowAvatarModal(false);
                       }}
                       aria-label={`Elegir avatar ${pet.displayName}`}

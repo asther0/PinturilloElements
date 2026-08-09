@@ -32,6 +32,7 @@ import {
   shouldRetrySnapshotRequest,
 } from "@/lib/roomSnapshotProtocol";
 import { petdexSpriteSrc } from "@/lib/petdexImage";
+import { playPetdexSound } from "@/lib/petdexSound";
 import {
   PortalBridge,
   usePortal,
@@ -248,6 +249,8 @@ function RoomInner({
   // Player ids that already earned the drawer bonus for the current round, so
   // duplicate correct guesses never grant it twice to the same guesser.
   const drawerBonusAwardedRef = useRef(new Set<string>());
+  const playedCorrectGuessSoundIdsRef = useRef(new Set<string>());
+  const playedRoundCompletionSoundIdsRef = useRef(new Set<string>());
   const lastSnapshotRequestIdRef = useRef<string | null>(null);
   const lastSnapshotResponseIdRef = useRef<string | null>(null);
   const snapshotRetryRef = useRef(createSnapshotRetryState());
@@ -359,6 +362,11 @@ function RoomInner({
           const score = calculateGuessScore(g.roundState?.timeRemaining || 0, g.roomConfig.drawTimeSeconds);
           const drawerId = g.roundState?.drawerId;
           const firstCorrect = !drawerBonusAwardedRef.current.has(guesser.id);
+          const guessSoundId = event.eventId || `${g.roundState?.startedAt || "round"}:${guesser.id}:${event.payload.content}`;
+          if (!playedCorrectGuessSoundIdsRef.current.has(guessSoundId)) {
+            playedCorrectGuessSoundIdsRef.current.add(guessSoundId);
+            playPetdexSound(guesser.avatar);
+          }
           if (firstCorrect) drawerBonusAwardedRef.current.add(guesser.id);
           setGame((prev) => {
             const newScores = { ...prev.scores, [guesser.id]: (prev.scores[guesser.id] || 0) + score };
@@ -378,6 +386,12 @@ function RoomInner({
         break;
       }
       case "roundEnd": {
+        const roundSoundId = `${g.roundState?.startedAt || event.eventId || "round"}:${g.roundState?.drawerId || "drawer"}`;
+        if (!playedRoundCompletionSoundIdsRef.current.has(roundSoundId)) {
+          playedRoundCompletionSoundIdsRef.current.add(roundSoundId);
+          const drawer = g.players.find((player) => player.id === g.roundState?.drawerId);
+          playPetdexSound(drawer?.avatar);
+        }
         setGame((prev) => {
           const updatedScores = { ...prev.scores, ...event.payload.scores };
           return { ...prev, phase: "roundResult", scores: updatedScores };
