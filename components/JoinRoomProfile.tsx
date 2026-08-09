@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { petdexSpriteSrc } from "@/lib/petdexImage";
 
 type PetdexPet = {
   slug: string;
@@ -81,7 +82,7 @@ function PetSprite({ pet }: { pet: PetdexPet }) {
       )}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={pet.spritesheetPath}
+        src={petdexSpriteSrc(pet.spritesheetPath)}
         alt=""
         onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}

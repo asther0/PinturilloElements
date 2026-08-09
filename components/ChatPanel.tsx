@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { ChatMessage, PetdexAvatar, Player } from "@/lib/types";
 import { playerKindBadge } from "@/lib/gameLogic";
+import { petdexSpriteSrc } from "@/lib/petdexImage";
 
 function SpriteLoading() {
   return (
@@ -51,7 +52,7 @@ function AvatarThumb({ avatar, small = false }: { avatar?: PetdexAvatar; small?:
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         aria-hidden="true"
-        src={avatar.spritesheetUrl}
+        src={petdexSpriteSrc(avatar.spritesheetUrl)}
         alt=""
         onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}

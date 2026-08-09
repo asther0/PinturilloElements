@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LOGO_COLLECTIONS } from "@/lib/gameLogic";
+import { petdexSpriteSrc } from "@/lib/petdexImage";
 
 
 
@@ -148,7 +149,7 @@ function PetdexSprite({ pet }: { pet: PetdexPet }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         aria-hidden="true"
-        src={pet.spritesheetPath}
+        src={petdexSpriteSrc(pet.spritesheetPath)}
         alt=""
         onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}

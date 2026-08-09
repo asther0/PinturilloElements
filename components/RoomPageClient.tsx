@@ -23,6 +23,7 @@ import {
   makeRoomAgentPlayer,
   DRAWER_GUESS_BONUS,
 } from "@/lib/gameLogic";
+import { petdexSpriteSrc } from "@/lib/petdexImage";
 import {
   PortalBridge,
   usePortal,
@@ -77,7 +78,7 @@ function PlayerAvatar({ avatar }: { avatar?: PetdexAvatar }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         aria-hidden="true"
-        src={avatar.spritesheetUrl}
+        src={petdexSpriteSrc(avatar.spritesheetUrl)}
         alt=""
         onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}
