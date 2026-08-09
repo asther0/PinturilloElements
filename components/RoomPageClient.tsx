@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { GameState, ChatMessage, Stroke, PortalEvent, PetdexAvatar, Player, RoomConfig, LateJoinPolicy } from "@/lib/types";
+import { GameState, ChatMessage, Stroke, PortalEvent, PetdexAvatar, Player, RoomConfig, LateJoinPolicy, RoomSnapshotPayload } from "@/lib/types";
 import {
   createInitialState,
   pickThreeWords,
@@ -288,6 +288,8 @@ function RoomInner({
   // Player ids that already earned the drawer bonus for the current round, so
   // duplicate correct guesses never grant it twice to the same guesser.
   const drawerBonusAwardedRef = useRef(new Set<string>());
+  const lastSnapshotRequestIdRef = useRef<string | null>(null);
+  const lastSnapshotResponseIdRef = useRef<string | null>(null);
   gameRef.current = game;
 
   const isDrawer = isLocalPlayerDrawer(game, localPlayerId);
@@ -517,8 +519,89 @@ function RoomInner({
         setLateWaiting(true);
         break;
       }
+      case "roomSnapshotRequest": {
+        if (!isHost) break;
+        const requesterId = event.senderId;
+        const requestId = event.payload.requestId;
+        if (!requesterId || !requestId) break;
+        // If detailedPresence is already available, reject unknown requesters.
+        // When it is not yet populated we allow the request: Portal transport
+        // already filters by recipientId, and a non-member simply never receives
+        // the unicast response.
+        const presence = portalRef.current.detailedPresence;
+        if (presence && !presence.participants.some((p) => p.id === requesterId)) break;
+        // Late-join snapshots never include the hidden word; late joiners are
+        // spectators and must not extract the current answer via the sync
+        // protocol.
+        const roundStateSnapshot = g.roundState
+          ? {
+              roundNumber: g.roundState.roundNumber,
+              drawerId: g.roundState.drawerId,
+              timeRemaining: g.roundState.timeRemaining,
+              startedAt: g.roundState.startedAt,
+            }
+          : undefined;
+        const snapshot: RoomSnapshotPayload = {
+          requestId,
+          roomConfig: g.roomConfig,
+          players: g.players,
+          hostId: g.hostId || localPlayerId,
+          phase: g.phase,
+          currentRound: g.currentRound,
+          totalRounds: g.totalRounds,
+          scores: g.scores,
+          currentDrawerIndex: g.currentDrawerIndex,
+          ...(roundStateSnapshot ? { roundState: roundStateSnapshot } : {}),
+          ...(g.winnerId ? { winnerId: g.winnerId } : {}),
+        };
+        // Stay well under Portal 2KB limit. If the payload is large, strip
+        // heavy per-player optional fields (avatars) before sending.
+        const encoder = new TextEncoder();
+        const rawSize = encoder.encode(JSON.stringify({ type: "roomSnapshot", payload: snapshot })).length;
+        if (rawSize > 1800) {
+          snapshot.players = snapshot.players.map((p) => ({ ...p, avatar: undefined }));
+        }
+        portalRef.current.send(
+          { type: "roomSnapshot", payload: snapshot },
+          requesterId
+        );
+        break;
+      }
+      case "roomSnapshot": {
+        if (isHost) break;
+        const payload = event.payload;
+        // Reject stale or unsolicited snapshots by matching the requestId.
+        if (payload.requestId !== lastSnapshotRequestIdRef.current) break;
+        if (payload.requestId === lastSnapshotResponseIdRef.current) break;
+        lastSnapshotResponseIdRef.current = payload.requestId;
+        setGame((prev) => {
+          if (prev.hostId && prev.hostId !== payload.hostId) return prev;
+          return {
+            ...prev,
+            roomConfig: payload.roomConfig,
+            players: payload.players,
+            hostId: payload.hostId,
+            phase: payload.phase,
+            currentRound: payload.currentRound,
+            totalRounds: payload.totalRounds,
+            scores: payload.scores,
+            currentDrawerIndex: payload.currentDrawerIndex,
+            wordsForRound: [],
+            roundState: payload.roundState
+              ? {
+                  ...payload.roundState,
+                  word: payload.roundState.word ?? "",
+                  strokes: [],
+                  guesses: [],
+                }
+              : undefined,
+            ...(payload.winnerId !== undefined ? { winnerId: payload.winnerId } : {}),
+          };
+        });
+        break;
+      }
     }
-  }, [localPlayerId]);
+  }, [localPlayerId, isHost]);
 
   useRegisterPortalEventHandler(handleEvent);
   const portal = usePortal();
@@ -538,6 +621,30 @@ function RoomInner({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHost, portal.connected, roomId]);
+
+  // Non-hosts request a state snapshot from the host after connecting. This is
+  // the primary hydration mechanism for late-joiners because useChannel uses
+  // history="none"; without an explicit request, a guest may never see the
+  // current room state if it missed the last broadcast lobbySync.
+  useEffect(() => {
+    if (isHost || !portal.connected || lastSnapshotRequestIdRef.current != null) return;
+    const requestId = globalThis.crypto?.randomUUID?.() || `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    lastSnapshotRequestIdRef.current = requestId;
+    portal.send({
+      type: "roomSnapshotRequest",
+      payload: { requesterId: localPlayerId, requestId },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, portal.connected, localPlayerId, roomId]);
+
+  // Reset snapshot tracking on disconnect so a reconnection triggers a fresh
+  // request/response pair and never applies a stale snapshot.
+  useEffect(() => {
+    if (!portal.connected) {
+      lastSnapshotRequestIdRef.current = null;
+      lastSnapshotResponseIdRef.current = null;
+    }
+  }, [portal.connected]);
 
   // Non-host humans announce liveness to the host: once on Portal readiness
   // and then every HEARTBEAT_INTERVAL_MS while the lobby is open. The host

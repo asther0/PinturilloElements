@@ -112,11 +112,33 @@ type PortalEventData =
   | { type: "playerHeartbeat"; payload: { playerId: string } }
   | { type: "joinRejected"; payload: { playerId: string; reason: "full" | "closed" } }
   | { type: "lobbySync"; payload: { players: Player[]; hostId: string; roomConfig: RoomConfig } }
-  | { type: "lateJoinWaiting"; payload: { hostId: string } };
+  | { type: "lateJoinWaiting"; payload: { hostId: string } }
+  | { type: "roomSnapshotRequest"; payload: { requesterId: string; requestId: string } }
+  | { type: "roomSnapshot"; payload: RoomSnapshotPayload };
 
 export type PortalEvent = PortalEventData & {
   eventId?: string;
   senderId?: string;
+};
+
+export type RoomSnapshotPayload = {
+  requestId: string;
+  roomConfig: RoomConfig;
+  players: Player[];
+  hostId: string;
+  phase: GamePhase;
+  currentRound: number;
+  totalRounds: number;
+  scores: Record<string, number>;
+  currentDrawerIndex: number;
+  roundState?: {
+    roundNumber: number;
+    drawerId: string;
+    word?: string;
+    timeRemaining: number;
+    startedAt: number;
+  };
+  winnerId?: string;
 };
 
 export type ByokSession = {
