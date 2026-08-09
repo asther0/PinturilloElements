@@ -4,7 +4,7 @@ import type { GameState, Player, RoomSnapshotPayload } from "./types";
 // payload exceeds this budget, heavy per-player optional fields are stripped.
 export const SNAPSHOT_MAX_BYTES = 1800;
 
-// Default guest retry parameters for playerJoin and roomSnapshotRequest. They
+// Default guest retry parameters for joinRequest and roomSnapshotRequest. They
 // are shared by the bounded retry loop in RoomPageClient and the unit tests
 // that pin the timing semantics.
 export const SNAPSHOT_RETRY_INTERVAL_MS = 2000;
@@ -13,6 +13,76 @@ export const SNAPSHOT_RETRY_MAX_ATTEMPTS = 5;
 export interface SnapshotRequest {
   requestId: string;
   targetPlayerId: string;
+}
+
+export interface LobbyJoinRequest extends SnapshotRequest {
+  player: Player;
+}
+
+/**
+ * A join retry is a retransmission, not a new attempt. Keep its correlation
+ * id until the host accepts, rejects, or the connection is reset.
+ */
+export function ensureJoinRequestId(
+  currentRequestId: string | null,
+  createRequestId: () => string
+): string {
+  return currentRequestId ?? createRequestId();
+}
+
+export type LobbyJoinResult =
+  | { type: "joinAccepted"; nextState: GameState; payload: RoomSnapshotPayload }
+  | {
+      type: "joinRejected";
+      nextState: GameState;
+      payload: { requestId: string; targetPlayerId: string; reason: "full" | "closed" };
+    };
+
+/**
+ * Host-authoritative join transition. Its acceptance payload is built from
+ * the same computed roster that becomes the host state, so a join retry can
+ * never receive a snapshot from the pre-join roster.
+ */
+export function acceptLobbyJoin(
+  state: GameState,
+  request: LobbyJoinRequest,
+  hostId: string
+): LobbyJoinResult {
+  const player = request.player;
+  const validPlayer =
+    request.targetPlayerId === player.id &&
+    player.kind === "human" &&
+    Boolean(player.id.trim()) &&
+    Boolean(player.name.trim());
+  const reject = (reason: "full" | "closed"): LobbyJoinResult => ({
+    type: "joinRejected",
+    nextState: state,
+    payload: {
+      requestId: request.requestId,
+      targetPlayerId: request.targetPlayerId,
+      reason,
+    },
+  });
+
+  if (!validPlayer || state.phase !== "lobby") return reject("closed");
+
+  const alreadyPresent = state.players.some((candidate) => candidate.id === player.id);
+  if (!alreadyPresent && state.players.length >= state.roomConfig.humanCount) {
+    return reject("full");
+  }
+
+  const nextState = alreadyPresent
+    ? state
+    : {
+        ...state,
+        players: [...state.players, player],
+        scores: { ...state.scores, [player.id]: player.score },
+      };
+  return {
+    type: "joinAccepted",
+    nextState,
+    payload: buildRoomSnapshot(nextState, request, hostId),
+  };
 }
 
 function stringByteLength(value: string): number {
@@ -147,7 +217,7 @@ export function createSnapshotRetryState(opts?: {
 }
 
 /**
- * Pure decision: should the guest re-send `playerJoin` right now?
+ * Pure decision: should the guest re-send `joinRequest` right now?
  *
  * The guest retries only while the host's authoritative roster has not yet
  * acknowledged the local player. Once the host has applied a snapshot that
@@ -225,4 +295,3 @@ export function applyRoomSnapshot(
     ...(payload.winnerId !== undefined ? { winnerId: payload.winnerId } : {}),
   };
 }
-

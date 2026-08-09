@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildRoomSnapshot,
+  acceptLobbyJoin,
+  ensureJoinRequestId,
   isSnapshotDirectedTo,
   applyRoomSnapshot,
   selectSnapshotRequester,
@@ -79,6 +81,51 @@ function emptyGuestState(): GameState {
 }
 
 describe("roomSnapshotProtocol", () => {
+  test("a delayed join acceptance still matches after multiple retries", () => {
+    let generated = 0;
+    const generate = () => `join-${++generated}`;
+    let requestId: string | null = null;
+
+    // Retries resend the same id, so an acceptance delayed from the first
+    // delivery is still directed at the guest's active join attempt.
+    requestId = ensureJoinRequestId(requestId, generate);
+    requestId = ensureJoinRequestId(requestId, generate);
+    requestId = ensureJoinRequestId(requestId, generate);
+
+    const delayedAcceptance = buildRoomSnapshot(
+      hostState(),
+      { requestId: "join-1", targetPlayerId: "guest-2" },
+      "host-1"
+    );
+    expect(generated).toBe(1);
+    expect(isSnapshotDirectedTo(delayedAcceptance, requestId, "guest-2")).toBe(true);
+  });
+
+  test("join acceptance is idempotent and snapshots the computed roster despite duplicate or reordered delivery", () => {
+    const host = {
+      ...hostState(),
+      players: [hostState().players[0]],
+      scores: { "host-1": 0 },
+    };
+    const alba = { id: "guest-2", name: "Beto", score: 0, kind: "human" as const };
+
+    // The guest's retry arrives before its original request. Each host result
+    // becomes the state for the next delivery, modeling the React render state
+    // that would otherwise be stale while Portal reorders deliveries.
+    const first = acceptLobbyJoin(host, { requestId: "join-alba-retry", targetPlayerId: alba.id, player: alba }, "host-1");
+    expect(first.type).toBe("joinAccepted");
+    if (first.type !== "joinAccepted") throw new Error("expected acceptance");
+    expect(first.payload.players.map((player) => player.id)).toEqual(["host-1", "guest-2"]);
+
+    const duplicate = acceptLobbyJoin(first.nextState, { requestId: "join-alba-original", targetPlayerId: alba.id, player: alba }, "host-1");
+    expect(duplicate.type).toBe("joinAccepted");
+    if (duplicate.type !== "joinAccepted") throw new Error("expected acceptance");
+    expect(duplicate.nextState.players.map((player) => player.id)).toEqual(["host-1", "guest-2"]);
+    expect(duplicate.payload.players).toEqual(duplicate.nextState.players);
+    expect(duplicate.payload.targetPlayerId).toBe(alba.id);
+    expect(duplicate.payload.requestId).toBe("join-alba-original");
+  });
+
   test("host builds a snapshot without the secret round word or word choices", () => {
     const state = hostDrawingState();
     const snapshot = buildRoomSnapshot(

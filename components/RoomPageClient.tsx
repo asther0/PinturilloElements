@@ -23,6 +23,8 @@ import {
 } from "@/lib/gameLogic";
 import {
   buildRoomSnapshot,
+  acceptLobbyJoin,
+  ensureJoinRequestId,
   isSnapshotDirectedTo,
   applyRoomSnapshot,
   selectSnapshotRequester,
@@ -254,6 +256,9 @@ function RoomInner({
   const lastSnapshotRequestIdRef = useRef<string | null>(null);
   const lastSnapshotResponseIdRef = useRef<string | null>(null);
   const snapshotRetryRef = useRef(createSnapshotRetryState());
+  const lastJoinRequestIdRef = useRef<string | null>(null);
+  const needsResyncRef = useRef(false);
+  const wasConnectedRef = useRef(false);
   // Latest identity values. The guest retry loop must read the most recent
   // playerName/avatar without re-mounting its interval whenever those props
   // change; otherwise an avatar swap or a name tweak would reset the retry
@@ -411,15 +416,19 @@ function RoomInner({
         }));
         break;
       }
-      case "playerJoin": {
-        if (g.hostId !== localPlayerId) break;
+      case "joinRequest": {
+        const authoritativeState = gameRef.current;
+        if (authoritativeState.hostId !== localPlayerId) break;
         const player = event.payload.player;
-        lastSeenRef.current.set(player.id, Date.now());
-        if (g.phase !== "lobby") {
-          if (g.roomConfig.lateJoin === "closed") {
+        if (authoritativeState.phase !== "lobby") {
+          if (authoritativeState.roomConfig.lateJoin === "closed") {
             portalRef.current.send({
               type: "joinRejected",
-              payload: { playerId: player.id, reason: "closed" },
+              payload: {
+                requestId: event.payload.requestId,
+                targetPlayerId: event.payload.targetPlayerId,
+                reason: "closed",
+              },
             });
           } else {
             portalRef.current.send({
@@ -429,26 +438,18 @@ function RoomInner({
           }
           break;
         }
-        const isHuman = player.kind === "human" && Boolean(player.id) && Boolean(player.name.trim());
-        const alreadyPresent =
-          g.players.some((p) => p.id === player.id) || pendingJoinsRef.current.has(player.id);
-        if (!alreadyPresent && isHuman) {
-          if (g.players.length + pendingJoinsRef.current.size >= g.roomConfig.humanCount) {
-            portalRef.current.send({
-              type: "joinRejected",
-              payload: { playerId: player.id, reason: "full" },
-            });
-            break;
-          }
-          pendingJoinsRef.current.add(player.id);
-          setGame((prev) => {
-            pendingJoinsRef.current.delete(player.id);
-            return {
-              ...prev,
-              players: [...prev.players, player],
-              scores: { ...prev.scores, [player.id]: player.score },
-            };
-          });
+        // Portal invokes this handler serially. Advance the mutable state
+        // mirror before publishing React state, so consecutive deliveries
+        // compute from the same authoritative roster without sending from a
+        // React state updater (which React may replay).
+        const result = acceptLobbyJoin(gameRef.current, event.payload, localPlayerId);
+        gameRef.current = result.nextState;
+        setGame(result.nextState);
+        if (result.type === "joinAccepted") {
+          lastSeenRef.current.set(player.id, Date.now());
+          portalRef.current.send({ type: "joinAccepted", payload: result.payload });
+        } else {
+          portalRef.current.send({ type: "joinRejected", payload: result.payload });
         }
         break;
       }
@@ -473,9 +474,24 @@ function RoomInner({
         break;
       }
       case "joinRejected": {
-        if (event.payload.playerId !== localPlayerId) break;
+        if (
+          event.payload.targetPlayerId !== localPlayerId ||
+          event.payload.requestId !== lastJoinRequestIdRef.current
+        ) break;
+        lastJoinRequestIdRef.current = null;
+        joinRetryRef.current.attempts = joinRetryRef.current.maxAttempts;
         if (event.payload.reason === "full") setRoomFull(true);
         if (event.payload.reason === "closed") setRoomClosed(true);
+        break;
+      }
+      case "joinAccepted": {
+        if (isHost) break;
+        const payload = event.payload;
+        if (!isSnapshotDirectedTo(payload, lastJoinRequestIdRef.current, localPlayerId)) break;
+        const nextState = applyRoomSnapshot(gameRef.current, payload);
+        gameRef.current = nextState;
+        lastJoinRequestIdRef.current = null;
+        setGame(nextState);
         break;
       }
       case "lobbySync": {
@@ -542,10 +558,9 @@ function RoomInner({
   const portalRef = useRef(portal);
   portalRef.current = portal;
 
-  // Guest join/snapshot recovery: bounded, repeatable after every connect.
-  // Retries every 2s up to 5 attempts until the local player is present in
-  // the host's roster and a matching snapshot has been acknowledged. State lives
-  // in refs so the interval never causes a React update loop.
+  // Guests enter via one idempotent request. Its accepted response contains
+  // the authoritative roster, so initial entry never depends on a separately
+  // ordered snapshot request.
   useEffect(() => {
     if (isHost || !portal.connected) return;
     const tick = () => {
@@ -560,28 +575,14 @@ function RoomInner({
           playerNameRef.current,
           avatarRef.current
         );
-        portalRef.current.send({
-          type: "playerJoin",
-          payload: { player: localPlayer },
-        });
-      }
-
-      if (
-        shouldRetrySnapshotRequest(snapshotRetryRef.current, now, {
-          lastRequestId: lastSnapshotRequestIdRef.current,
-          lastResponseId: lastSnapshotResponseIdRef.current,
-          hasRosterEntry,
-        })
-      ) {
-        snapshotRetryRef.current.attempts++;
-        snapshotRetryRef.current.lastAttemptAt = now;
-        const requestId =
+        const requestId = ensureJoinRequestId(lastJoinRequestIdRef.current, () =>
           globalThis.crypto?.randomUUID?.() ||
-          `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        lastSnapshotRequestIdRef.current = requestId;
+          `join-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        );
+        lastJoinRequestIdRef.current = requestId;
         portalRef.current.send({
-          type: "roomSnapshotRequest",
-          payload: { requesterId: localPlayerId, requestId },
+          type: "joinRequest",
+          payload: { requestId, targetPlayerId: localPlayerId, player: localPlayer },
         });
       }
     };
@@ -596,16 +597,53 @@ function RoomInner({
     // host flip).
   }, [isHost, portal.connected, localPlayerId]);
 
-  // Reset snapshot tracking and retry state on disconnect so a reconnection
-  // triggers a fresh request/response pair and never applies a stale snapshot.
+  // Snapshot requests are retained exclusively for reconnect/resync. Initial
+  // lobby entry is covered by joinAccepted above.
+  useEffect(() => {
+    if (portal.connected) {
+      wasConnectedRef.current = true;
+      return;
+    }
+    if (wasConnectedRef.current) needsResyncRef.current = true;
+    lastJoinRequestIdRef.current = null;
+    joinRetryRef.current = createJoinRetryState();
+    lastSnapshotRequestIdRef.current = null;
+    lastSnapshotResponseIdRef.current = null;
+    snapshotRetryRef.current = createSnapshotRetryState();
+  }, [portal.connected]);
+
+  useEffect(() => {
+    if (isHost || !portal.connected || !needsResyncRef.current) return;
+    const tick = () => {
+      const now = Date.now();
+      const hasRosterEntry = gameRef.current.players.some((p) => p.id === localPlayerId);
+      if (!shouldRetrySnapshotRequest(snapshotRetryRef.current, now, {
+        lastRequestId: lastSnapshotRequestIdRef.current,
+        lastResponseId: lastSnapshotResponseIdRef.current,
+        hasRosterEntry,
+      })) return;
+      snapshotRetryRef.current.attempts++;
+      snapshotRetryRef.current.lastAttemptAt = now;
+      const requestId = globalThis.crypto?.randomUUID?.() || `resync-${Date.now()}`;
+      lastSnapshotRequestIdRef.current = requestId;
+      portalRef.current.send({
+        type: "roomSnapshotRequest",
+        payload: { requesterId: localPlayerId, requestId },
+      });
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [isHost, localPlayerId, portal.connected]);
+
   useEffect(() => {
     if (!portal.connected) {
-      lastSnapshotRequestIdRef.current = null;
-      lastSnapshotResponseIdRef.current = null;
-      joinRetryRef.current = createJoinRetryState();
-      snapshotRetryRef.current = createSnapshotRetryState();
+      return;
     }
-  }, [portal.connected]);
+    if (lastSnapshotResponseIdRef.current === lastSnapshotRequestIdRef.current) {
+      needsResyncRef.current = false;
+    }
+  }, [game.players, portal.connected]);
 
   // Non-host humans announce liveness to the host: once on Portal readiness
   // and then every HEARTBEAT_INTERVAL_MS while the lobby is open. The host
@@ -648,7 +686,7 @@ function RoomInner({
   // Host-side human liveness while in the lobby. The host tracks the last
   // heartbeat per non-host human. A non-host human that stays silent for
   // HUMAN_TIMEOUT_MS is removed from the roster, its score, and any pending
-  // join. Liveness is fed only by playerHeartbeat events and playerJoin; a
+  // join. Liveness is fed only by playerHeartbeat events and joinRequest; a
   // stale Portal presence snapshot can never mask an expired human. The host
   // stays alive independently. The periodic recheck only mutates game state
   // when a player actually expires, so it never causes an update loop.
@@ -685,7 +723,7 @@ function RoomInner({
     const tick = () => {
       const now = Date.now();
       // The host stays alive independently; non-host liveness is refreshed
-      // only by playerJoin and playerHeartbeat events.
+      // only by joinRequest and playerHeartbeat events.
       lastSeenRef.current.set(localPlayerId, now);
       applyFilter(now);
     };
@@ -1208,6 +1246,15 @@ function RoomInner({
               >
                 Esperando jugadores para empezar la partida.
               </p>
+              {!portal.connected && (
+                <p
+                  role="status"
+                  className="mx-auto mt-3 max-w-md border-2 border-[#111111] bg-[#F5D033] px-3 py-2 text-[12px] text-[#111111]"
+                  style={{ fontFamily: FONT_BODY }}
+                >
+                  La conexión en tiempo real no está lista. La sala se reintentará sincronizar.
+                </p>
+              )}
             </div>
 
             <div

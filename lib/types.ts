@@ -92,10 +92,11 @@ type PortalEventData =
   | { type: "gameOver"; payload: { winnerId: string; finalScores: Record<string, number> } }
   | { type: "chooseWord"; payload: { words: string[] } }
   | { type: "wordChosen"; payload: { word: string } }
-  | { type: "playerJoin"; payload: { player: Player } }
+  | { type: "joinRequest"; payload: { requestId: string; targetPlayerId: string; player: Player } }
+  | { type: "joinAccepted"; payload: RoomSnapshotPayload }
   | { type: "playerLeave"; payload: { playerId: string } }
   | { type: "playerHeartbeat"; payload: { playerId: string } }
-  | { type: "joinRejected"; payload: { playerId: string; reason: "full" | "closed" } }
+  | { type: "joinRejected"; payload: { requestId: string; targetPlayerId: string; reason: "full" | "closed" } }
   | { type: "lobbySync"; payload: { players: Player[]; hostId: string; roomConfig: RoomConfig } }
   | { type: "lateJoinWaiting"; payload: { hostId: string } }
   | { type: "roomSnapshotRequest"; payload: { requesterId: string; requestId: string } }
