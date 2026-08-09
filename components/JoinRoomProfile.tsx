@@ -149,6 +149,7 @@ export default function JoinRoomProfile({ roomId }: { roomId: string }) {
             <button
               key={pet.slug}
               type="button"
+              data-sound="off"
               onClick={() => {
                 setSelectedPet(pet);
                 playPetdexSound({ spritesheetUrl: pet.spritesheetPath });

@@ -229,6 +229,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     key={pet.slug}
+                    data-sound="off"
                     onClick={() => {
                       setSelectedAvatar(pet);
                       playPetdexSound({ spritesheetUrl: pet.spritesheetPath });
@@ -374,6 +375,7 @@ export default function HomePage() {
                     <button
                       type="button"
                       key={pet.slug}
+                      data-sound="off"
                       onClick={() => {
                         setSelectedAvatar(pet);
                         playPetdexSound({ spritesheetUrl: pet.spritesheetPath });

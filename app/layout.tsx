@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Mono, DM_Sans } from "next/font/google";
+import { UiSoundFeedback } from "@/components/UiSoundFeedback";
 import "./globals.css";
 
 const spaceMono = Space_Mono({
@@ -31,6 +32,7 @@ export default function RootLayout({
       <body
         className={`${spaceMono.variable} ${dmSans.variable} bg-[#E7E2D4] text-[#111111] antialiased`}
       >
+        <UiSoundFeedback />
         {children}
       </body>
     </html>
