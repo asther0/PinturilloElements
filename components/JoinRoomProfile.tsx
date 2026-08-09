@@ -2,45 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  PETDEX_CATALOG,
+  PETDEX_INITIAL_VISIBLE_COUNT,
+  type PetdexCatalogPet,
+} from "@/lib/petdexCatalog";
 import { petdexSpriteSrc } from "@/lib/petdexImage";
 
-type PetdexPet = {
-  slug: string;
-  displayName: string;
-  spritesheetPath: string;
-  dominantColor?: string;
-};
+type PetdexPet = PetdexCatalogPet;
 
-const FALLBACK_PETS: PetdexPet[] = [
-  { slug: "nezukocoder", displayName: "NezukoCoder", spritesheetPath: "https://assets.petdex.dev/pets/nezukocoder-7d766f7c2597/sprite.webp", dominantColor: "#c65922" },
-  { slug: "shinchan", displayName: "Shinchan", spritesheetPath: "https://assets.petdex.dev/pets/shinchan-154a84d8ff3c/sprite.webp", dominantColor: "#de1f1a" },
-  { slug: "capvolt", displayName: "Pikachu", spritesheetPath: "https://assets.petdex.dev/pets/capvolt-7be64ef6cfa2/sprite.webp", dominantColor: "#f7d605" },
-  { slug: "doraemon", displayName: "Doraemon", spritesheetPath: "https://assets.petdex.dev/pets/doraemon-58b12a5012e0/sprite.webp", dominantColor: "#048ae1" },
-];
-
-function parsePet(value: unknown): PetdexPet | null {
-  if (!value || typeof value !== "object") return null;
-  const pet = value as Record<string, unknown>;
-  if (typeof pet.slug !== "string" || typeof pet.spritesheetPath !== "string") return null;
-
-  try {
-    const url = new URL(pet.spritesheetPath);
-    if (url.protocol !== "https:" || url.hostname !== "assets.petdex.dev" || !url.pathname.startsWith("/pets/")) return null;
-  } catch {
-    return null;
+function shuffleArray<T>(array: T[]): T[] {
+  const result = [...array];
+  for (let index = result.length - 1; index > 0; index--) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[randomIndex]] = [result[randomIndex], result[index]];
   }
-
-  const displayName = (typeof pet.displayName === "string" ? pet.displayName : pet.slug)
-    .replace(/[\p{Extended_Pictographic}\p{Cf}]/gu, "")
-    .trim()
-    .slice(0, 100);
-
-  return {
-    slug: pet.slug.slice(0, 100),
-    displayName: displayName || pet.slug.slice(0, 100),
-    spritesheetPath: pet.spritesheetPath,
-    dominantColor: typeof pet.dominantColor === "string" && /^#[0-9a-f]{6}$/i.test(pet.dominantColor) ? pet.dominantColor : undefined,
-  };
+  return result;
 }
 
 function SpriteLoading() {
@@ -95,32 +72,15 @@ function PetSprite({ pet }: { pet: PetdexPet }) {
 export default function JoinRoomProfile({ roomId }: { roomId: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [pets, setPets] = useState<PetdexPet[]>(FALLBACK_PETS);
-  const [selectedPet, setSelectedPet] = useState<PetdexPet>(FALLBACK_PETS[0]);
-  const [loading, setLoading] = useState(true);
+  const [pets, setPets] = useState<PetdexPet[]>(() =>
+    PETDEX_CATALOG.slice(0, PETDEX_INITIAL_VISIBLE_COUNT)
+  );
+  const [selectedPet, setSelectedPet] = useState<PetdexPet>(PETDEX_CATALOG[0]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetch("/petdex-api/pets/search?limit=8&sort=popular", {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Petdex unavailable");
-        const payload = await response.json() as { pets?: unknown[] };
-        const nextPets = (Array.isArray(payload.pets) ? payload.pets : [])
-          .map(parsePet)
-          .filter((pet): pet is PetdexPet => pet !== null)
-          .slice(0, 8);
-        if (nextPets.length === 0) throw new Error("No usable pets");
-        setPets(nextPets);
-        setSelectedPet(nextPets[0]);
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
+    setPets(
+      shuffleArray([...PETDEX_CATALOG]).slice(0, PETDEX_INITIAL_VISIBLE_COUNT)
+    );
   }, []);
 
   const continueToRoom = () => {
@@ -183,7 +143,7 @@ export default function JoinRoomProfile({ roomId }: { roomId: string }) {
         >
           Avatar Petdex
         </p>
-        <div className="mt-3 grid grid-cols-4 gap-3" aria-busy={loading}>
+        <div className="mt-3 grid grid-cols-4 gap-3">
           {pets.map((pet) => (
             <button
               key={pet.slug}
@@ -199,14 +159,6 @@ export default function JoinRoomProfile({ roomId }: { roomId: string }) {
             </button>
           ))}
         </div>
-        {loading && (
-          <p
-            className="mt-3 text-[11px] text-[#6B6B62]"
-            style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
-          >
-            Cargando avatares.
-          </p>
-        )}
 
         <button
           type="button"

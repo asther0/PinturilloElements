@@ -1,63 +1,17 @@
 "use client";
 
-import { useDeferredValue, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LOGO_COLLECTIONS } from "@/lib/logoCollections";
+import {
+  PETDEX_CATALOG,
+  PETDEX_INITIAL_VISIBLE_COUNT,
+  type PetdexCatalogPet,
+} from "@/lib/petdexCatalog";
 import { petdexSpriteSrc } from "@/lib/petdexImage";
 
-type PetdexPet = {
-  slug: string;
-  displayName: string;
-  spritesheetPath: string;
-  dominantColor?: string;
-};
-
-const PETDEX_CURATED_COUNT = 12;
-const PETDEX_PAGE_SIZE = 30;
+type PetdexPet = PetdexCatalogPet;
 const HOST_STORAGE_PREFIX = "pinturillo-host:";
-const FALLBACK_PETS: PetdexPet[] = [
-  {
-    slug: "nezukocoder",
-    displayName: "NezukoCoder",
-    spritesheetPath:
-      "https://assets.petdex.dev/pets/nezukocoder-7d766f7c2597/sprite.webp",
-    dominantColor: "#c65922",
-  },
-  {
-    slug: "shinchan",
-    displayName: "Shinchan",
-    spritesheetPath:
-      "https://assets.petdex.dev/pets/shinchan-154a84d8ff3c/sprite.webp",
-    dominantColor: "#de1f1a",
-  },
-  {
-    slug: "capvolt",
-    displayName: "Pikachu",
-    spritesheetPath:
-      "https://assets.petdex.dev/pets/capvolt-7be64ef6cfa2/sprite.webp",
-    dominantColor: "#f7d605",
-  },
-  {
-    slug: "lulu-capybara-2",
-    displayName: "Lulu Capybara",
-    spritesheetPath:
-      "https://assets.petdex.dev/pets/lulu-capybara-9f9107636ecc/sprite.webp",
-  },
-  {
-    slug: "doraemon",
-    displayName: "Doraemon",
-    spritesheetPath:
-      "https://assets.petdex.dev/pets/doraemon-58b12a5012e0/sprite.webp",
-    dominantColor: "#048ae1",
-  },
-  {
-    slug: "qqpet-codex",
-    displayName: "QQpet-codex",
-    spritesheetPath:
-      "https://assets.petdex.dev/pets/qqpet-codex-pending-6c6a5a48a512/sprite.png",
-    dominantColor: "#eb8b04",
-  },
-];
 
 function shuffleArray<T>(array: T[]): T[] {
   const result = [...array];
@@ -68,43 +22,6 @@ function shuffleArray<T>(array: T[]): T[] {
   return result;
 }
 
-function parsePet(value: unknown): PetdexPet | null {
-  if (!value || typeof value !== "object") return null;
-
-  const pet = value as Record<string, unknown>;
-  if (
-    typeof pet.slug !== "string" ||
-    typeof pet.spritesheetPath !== "string"
-  ) {
-    return null;
-  }
-
-  try {
-    const spriteUrl = new URL(pet.spritesheetPath);
-    if (
-      spriteUrl.protocol !== "https:" ||
-      spriteUrl.hostname !== "assets.petdex.dev"
-    ) {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-
-  const rawDisplayName =
-    typeof pet.displayName === "string" ? pet.displayName : pet.slug;
-  const displayName = rawDisplayName
-    .replace(/[\p{Extended_Pictographic}\p{Cf}]/gu, "")
-    .trim();
-
-  return {
-    slug: pet.slug,
-    displayName: displayName || pet.slug,
-    spritesheetPath: pet.spritesheetPath,
-    dominantColor:
-      typeof pet.dominantColor === "string" ? pet.dominantColor : undefined,
-  };
-}
 
 function SpriteLoading() {
   return (
@@ -157,62 +74,6 @@ function PetdexSprite({ pet }: { pet: PetdexPet }) {
   );
 }
 
-type PetdexPage = {
-  pets: PetdexPet[];
-  nextCursor: number | null;
-  total: number;
-};
-
-function parsePetdexPage(data: unknown): PetdexPage {
-  const record =
-    data && typeof data === "object"
-      ? (data as Record<string, unknown>)
-      : {};
-  const pets = (Array.isArray(record.pets) ? record.pets : [])
-    .map(parsePet)
-    .filter((pet): pet is PetdexPet => pet !== null);
-  const nextCursor =
-    typeof record.nextCursor === "number" && Number.isFinite(record.nextCursor)
-      ? record.nextCursor
-      : null;
-
-  return {
-    pets,
-    nextCursor,
-    total:
-      typeof record.total === "number" && Number.isFinite(record.total)
-        ? record.total
-        : pets.length,
-  };
-}
-
-async function fetchPetdexPage({
-  query = "",
-  cursor,
-  signal,
-  limit = PETDEX_PAGE_SIZE,
-}: {
-  query?: string;
-  cursor?: number;
-  signal?: AbortSignal;
-  limit?: number;
-}): Promise<PetdexPage> {
-  const params = new URLSearchParams({ limit: String(limit) });
-  params.set("sort", "popular");
-  if (query) params.set("q", query);
-  if (cursor !== undefined) params.set("cursor", String(cursor));
-
-  const response = await fetch(`/petdex-api/pets/search?${params.toString()}`, {
-    headers: { Accept: "application/json" },
-    signal,
-  });
-  if (!response.ok) {
-    throw new Error(`Petdex responded with ${response.status}`);
-  }
-
-  return parsePetdexPage(await response.json());
-}
-
 export default function HomePage() {
   const [roomId, setRoomId] = useState("");
   const [name, setName] = useState("");
@@ -224,87 +85,28 @@ export default function HomePage() {
   const [createCollections, setCreateCollections] = useState<string[]>([]);
   const [collectionSearch, setCollectionSearch] = useState("");
 
-  const [curatedPets, setCuratedPets] = useState<PetdexPet[]>(FALLBACK_PETS);
-  const [petsLoading, setPetsLoading] = useState(true);
-  const [usingFallbackPets, setUsingFallbackPets] = useState(false);
-  const [selectedAvatar, setSelectedAvatar] = useState<PetdexPet>(FALLBACK_PETS[0]);
+  // The deterministic initial state matches server rendering. Randomization
+  // happens only after hydration, so the first 12 remain mismatch-free.
+  const [visiblePets, setVisiblePets] = useState<PetdexPet[]>(() =>
+    PETDEX_CATALOG.slice(0, PETDEX_INITIAL_VISIBLE_COUNT)
+  );
+  const [selectedAvatar, setSelectedAvatar] = useState<PetdexPet>(PETDEX_CATALOG[0]);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarSearch, setAvatarSearch] = useState("");
-  const [avatarResults, setAvatarResults] = useState<PetdexPet[]>(FALLBACK_PETS);
-  const [avatarNextCursor, setAvatarNextCursor] = useState<number | null>(null);
-  const [avatarTotal, setAvatarTotal] = useState(FALLBACK_PETS.length);
-  const [avatarLoading, setAvatarLoading] = useState(false);
-  const [avatarLoadingMore, setAvatarLoadingMore] = useState(false);
-  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
-  const deferredAvatarSearch = useDeferredValue(avatarSearch.trim());
-  const [shuffledCuratedPets, setShuffledCuratedPets] =
-    useState<PetdexPet[]>(curatedPets);
 
   const router = useRouter();
 
   useEffect(() => {
-    setShuffledCuratedPets(shuffleArray(curatedPets));
-  }, [curatedPets]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchPetdexPage({
-      limit: PETDEX_CURATED_COUNT,
-      signal: controller.signal,
-    })
-      .then((page) => {
-        if (page.pets.length === 0) {
-          throw new Error("Petdex returned no usable pets");
-        }
-
-        setCuratedPets(page.pets);
-        setSelectedAvatar((current) =>
-          page.pets.find((pet) => pet.slug === current.slug) || page.pets[0]
-        );
-        setUsingFallbackPets(false);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setUsingFallbackPets(true);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setPetsLoading(false);
-      });
-    return () => controller.abort();
+    setVisiblePets(
+      shuffleArray([...PETDEX_CATALOG]).slice(0, PETDEX_INITIAL_VISIBLE_COUNT)
+    );
   }, []);
 
-  useEffect(() => {
-    if (!showAvatarModal) return;
-
-    const controller = new AbortController();
-    setAvatarLoading(true);
-    setAvatarLoadFailed(false);
-    fetchPetdexPage({
-      query: deferredAvatarSearch,
-      signal: controller.signal,
-    })
-      .then((page) => {
-        if (page.pets.length === 0) {
-          setAvatarResults([]);
-        } else {
-          setAvatarResults(page.pets);
-        }
-        setAvatarNextCursor(page.nextCursor);
-        setAvatarTotal(page.total);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setAvatarLoadFailed(true);
-          setAvatarResults((current) =>
-            current.length > 0 ? current : FALLBACK_PETS
-          );
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setAvatarLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [deferredAvatarSearch, showAvatarModal]);
+  const avatarResults = PETDEX_CATALOG.filter((pet) =>
+    `${pet.displayName} ${pet.slug}`
+      .toLocaleLowerCase("es-PE")
+      .includes(avatarSearch.trim().toLocaleLowerCase("es-PE"))
+  );
 
   const buildRoomParams = () => {
     const params = new URLSearchParams();
@@ -349,37 +151,14 @@ export default function HomePage() {
     router.push(`/room/${id}?${params.toString()}`);
   };
 
-  const handleLoadMoreAvatars = async () => {
-    if (avatarNextCursor === null || avatarLoadingMore) return;
-
-    setAvatarLoadingMore(true);
-    setAvatarLoadFailed(false);
-    try {
-      const page = await fetchPetdexPage({
-        query: deferredAvatarSearch,
-        cursor: avatarNextCursor,
-      });
-      setAvatarResults((current) => {
-        const seen = new Set(current.map((pet) => pet.slug));
-        return [...current, ...page.pets.filter((pet) => !seen.has(pet.slug))];
-      });
-      setAvatarNextCursor(page.nextCursor);
-      setAvatarTotal(page.total);
-    } catch {
-      setAvatarLoadFailed(true);
-    } finally {
-      setAvatarLoadingMore(false);
-    }
-  };
-
-  const nearbyPets = shuffledCuratedPets.some(
+  const nearbyPets = visiblePets.some(
     (pet) => pet.slug === selectedAvatar.slug
   )
-    ? shuffledCuratedPets
+    ? visiblePets
     : [
         selectedAvatar,
-        ...shuffledCuratedPets.filter((pet) => pet.slug !== selectedAvatar.slug),
-      ].slice(0, PETDEX_CURATED_COUNT);
+        ...visiblePets.filter((pet) => pet.slug !== selectedAvatar.slug),
+      ].slice(0, PETDEX_INITIAL_VISIBLE_COUNT);
 
   return (
     <main className="relative flex h-screen flex-col items-center overflow-x-hidden overflow-y-auto bg-[#E7E2D4] px-4 py-10 text-[#111111]">
@@ -426,10 +205,7 @@ export default function HomePage() {
               >
                 Tu avatar Petdex
               </span>
-              {petsLoading && <span className="text-[11px] text-[#6B6B62]" style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}>Cargando...</span>}
-              {!petsLoading && usingFallbackPets && (
-                <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#F5D033]" style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}>Catálogo de respaldo</span>
-              )}
+              <span className="text-[11px] text-[#6B6B62]" style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}>24 opciones</span>
             </div>
 
             <div className="mt-3 text-center">
@@ -548,7 +324,7 @@ export default function HomePage() {
                   Elige tu avatar Petdex
                 </h2>
                 <p className="mt-1 text-[13px] text-[#111111]/80" style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}>
-                  {avatarTotal.toLocaleString("es-PE")} opciones en el catálogo público
+                  Las 24 opciones más populares de Petdex
                 </p>
               </div>
               <button
@@ -583,9 +359,7 @@ export default function HomePage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-5">
-              {avatarLoading ? (
-                <div className="py-16 text-center text-[15px] text-[#6B6B62]" style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}>Cargando catálogo Petdex...</div>
-              ) : avatarResults.length === 0 ? (
+              {avatarResults.length === 0 ? (
                 <div className="py-16 text-center">
                   <div className="text-[16px] font-bold text-[#111111]" style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}>No encontramos avatares</div>
                   <div className="mt-1 text-[13px] text-[#6B6B62]" style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}>Prueba con otra búsqueda.</div>
@@ -623,23 +397,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {avatarLoadFailed && (
-                <p className="mt-4 text-center text-[11px] font-bold uppercase tracking-[0.06em] text-[#F5D033]" style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}>
-                  Petdex no respondió. Conservamos las opciones ya cargadas.
-                </p>
-              )}
-
-              {!avatarLoading && avatarNextCursor !== null && avatarResults.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleLoadMoreAvatars}
-                  disabled={avatarLoadingMore}
-                  className="mx-auto mt-6 block border-2 border-[#111111] bg-[#FFFDF7] px-5 py-2.5 text-[13px] font-bold uppercase tracking-[0.06em] text-[#111111] shadow-[3px_3px_0_#111111] transition hover:bg-[#E7E2D4] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none disabled:opacity-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-                  style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
-                >
-                  {avatarLoadingMore ? "Cargando más..." : "Cargar más avatares"}
-                </button>
-              )}
             </div>
           </div>
         </div>
