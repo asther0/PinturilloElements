@@ -292,13 +292,13 @@ export default function GameCanvas({
       />
       {isDrawing && (
         <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-3">
-          <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-2xl border border-white/10 bg-black/70 px-2.5 py-2 shadow-xl backdrop-blur sm:gap-2 sm:px-4">
+          <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 border-2 border-[#111111] bg-[#111111] px-2.5 py-2 shadow-[5px_5px_0_#111111] sm:gap-2 sm:px-4">
             <div className="flex items-center gap-1">
               <ToolbarButton
                 active={tool === "pen"}
                 onClick={() => setTool("pen")}
-                label="Lápiz"
-                title="Lápiz"
+                label="Lapiz"
+                title="Lapiz"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

@@ -3,8 +3,8 @@
 Real-time multiplayer web game. One player draws a tech-company logo
 from memory on a constrained canvas while the rest of the room races
 to guess the brand. A partida is a fixed sequence of rondas scored
-against a 60-second clock. The MVP ships a single Skribbl-style loop
-with room-funded AI agents and Bring-Your-Own-Key agents.
+against a timed clock. Human-only rooms: 2 to 8 players, host-driven
+setup, no bots or AI.
 
 ## How to play
 
@@ -12,8 +12,8 @@ A room runs one partida made of rondas. The default is three rondas.
 
 | Phase | Duration | What happens |
 | --- | --- | --- |
-| Choosing | 10s | Drawer picks one of three company names from a hard-coded 3-item set (Vercel, Supabase, Obsidian). The pick is private. |
-| Drawing | 60s | Drawer recreates the chosen logo with strokes only. No text, no shapes, no images, no reference. Guesser see the canvas live and chat. |
+| Choosing | 10s | Drawer picks one of three company names from the TryElements catalog. The pick is private. |
+| Drawing | 45-90s | Drawer recreates the chosen logo with strokes only. No text, no shapes, no images, no reference. Guessers see the canvas live and chat. |
 | Result | 5s | Target word is revealed. Per-round scores are added to the leaderboard. Drawer rotates. |
 
 After the last ronda the room shows a final leaderboard and a winner.
@@ -25,27 +25,24 @@ A `Nueva partida` button restarts the sequence with the same roster.
 - Fixed 7-color palette
 - No text, no shapes, no image paste, no reference image
 
-## Room modes
+## Room setup
 
-Each room has a host who picks one of two modes and the agent roster.
+The host creates a public room and configures:
 
-| Mode | Humans | Agents | Host role |
-| --- | --- | --- | --- |
-| `mixed` | 2 to 8 | 1 to 6 | Plays as human |
-| `agents-only` | 0 | 1 to 6 | Watches as spectator |
+- Human capacity: 2 to 8 players
+- Rondas: 3, 4, or 5
+- Draw time: 45, 60, or 90 seconds
+- Late-join policy: spectator or closed
+- Logo source: full TryElements catalog (206 logos) or filtered collections
 
-Agents-only mode adds a `difficulty` setting (easy, medium, hard) that
-the host picks when creating the room.
+Guests join via room code. All players are human. No agents, no bots,
+no AI guessing, no BYOK.
 
 ## Players
 
 | Kind | Source | Behavior |
 | --- | --- | --- |
 | `human` | Joins via room code | Draws with the tool set or types guesses in chat. Guess input is disabled while drawing. |
-| `room-agent` | Added by the host | Funded by the room. Reads strokes and asks a model for a guess via `/api/agent-guess`. Also draws predefined strokes for Vercel, Supabase, Obsidian when it is the drawer. |
-| `agent-byok` | Future | Bring-Your-Own-Key agent. Not wired to a model in the MVP; uses a timed fallback guess. |
-
-The MVP word pool is hard-coded to Vercel, Supabase, and Obsidian.
 
 ## Building blocks
 
@@ -78,7 +75,6 @@ tabs and machines through Portal.
 - Next.js 15, React 19, App Router
 - TypeScript, Tailwind CSS
 - Portal SDK for realtime
-- OpenAI SDK for room-funded agent guesses
 - Bun as package manager and runner
 
 ## Bun commands
@@ -99,21 +95,18 @@ Copy `.env.example` to `.env.local` and fill in:
 | --- | --- | --- |
 | `NEXT_PUBLIC_PORTAL_API_KEY` | Client | Portal SDK publishable key. Without it the app falls back to the local in-memory bus. |
 | `NEXT_PUBLIC_ROOM_ID` | Client | Default room id when none is supplied. Defaults to `demo`. |
-| `OPENAI_API_KEY` | Server (`.env.local`, not `.env.example`) | OpenAI key used by `/api/agent-guess` for room-funded agents. |
 
 ## MVP status
 
 - Landing page that creates or joins a room by id
-- Room lobby with copyable room code and link, host edit modal, and a
-  roster that includes humans and agents with Petdex avatars
+- Room lobby with copyable room code, host edit modal, and a human
+  roster with Petdex avatars
 - Full Skribbl loop: 3 rounds by default, 10s word choice, 60s drawing,
   5s result beat, drawer rotation, per-round scoring, end-of-game
   leaderboard, `Nueva partida`
 - Drawing canvas with the round's tool set
 - Chat panel with player list, live scores, system messages, and a
   guess input disabled for the drawer
-- One room-funded agent per room when the host picks `agentCount >= 1`.
-  The agent both draws predefined strokes and guesses via OpenAI
 - Local fallback for single-developer play without a Portal key
 
 ## Known limits
@@ -122,9 +115,6 @@ Copy `.env.example` to `.env.local` and fill in:
   There is no server-side game state, no auth, no persistence beyond
   the current room session, and no historical leaderboards. Portal
   (or its local fallback) is the only state carrier.
-- The agent guess endpoint needs `OPENAI_API_KEY`. Without it, room
-  agents do not call a model. BYOK agents use a timed fallback guess
-  in the MVP regardless of the key.
 - The word pool is hard-coded to Vercel, Supabase, and Obsidian. The
   TryElements catalog API is not integrated.
 - Optimised for desktop and landscape tablet. Small phones are not a
@@ -152,16 +142,15 @@ Copy `.env.example` to `.env.local` and fill in:
 |  +- room/[id]/        Room page (room id route).
 |  |  +- page.tsx       Server entry, suspense around the client.
 |  |  +- RoomPageInner.tsx Reads ?name and forwards to client.
-|  +- api/agent-guess/  Server route for room-funded agent guesses.
 +- components/          Game UI and the PortalBridge provider.
 |  +- PortalBridge.tsx  Provider, local fallback, handler hook.
-|  +- RoomPageClient.tsx Room client (game state, phases, agents).
+|  +- RoomPageClient.tsx Room client (game state, phases).
 |  +- GameCanvas.tsx    Canvas, pen, eraser, palette, widths.
 |  +- GameUI.tsx        Header (round, drawer, timer).
 |  +- ChatPanel.tsx     Players, chat, guess input.
 |  +- JoinRoomProfile.tsx Name + Petdex avatar picker.
 +- lib/                 Game logic and Portal event types.
-|  +- gameLogic.ts      Phases, scoring, word picker, agent factories.
+|  +- gameLogic.ts      Phases, scoring, word picker.
 |  +- types.ts          Player, GameState, Stroke, PortalEvent.
 +- .vault-context/      Local symlinks to the project vault (gitignored).
 ```

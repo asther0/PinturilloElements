@@ -14,7 +14,7 @@ import {
 } from "react";
 import { PortalEvent, PortalPresenceMetadata } from "@/lib/types";
 import { PortalProvider, useChannel } from "@portalsdk/react";
-import { DetailedPresence, Portal } from "@portalsdk/core";
+import { DetailedPresence, Portal, Message } from "@portalsdk/core";
 
 const API_KEY = process.env.NEXT_PUBLIC_PORTAL_API_KEY;
 const HAS_KEY = Boolean(API_KEY && API_KEY !== "your_portal_api_key_here");
@@ -141,28 +141,37 @@ function ChannelListener({
   const processedMessageIds = useRef(new Set<string>());
   const lastPresenceSigRef = useRef<string>("");
   const safeMetadata = useMemo(() => safePresenceMetadata(metadata), [metadata]);
+  // Latest `deliver` lives in a ref so `handleMessage` stays referentially
+  // stable for `useChannel` (and never causes the channel to re-subscribe or
+  // trigger a setState loop on the parent) while still dispatching every
+  // incoming message to the most recent handler instance. Reading a stale
+  // closure here would let portal events land on a discarded handler and be
+  // silently dropped.
+  const deliverRef = useRef(deliver);
+  deliverRef.current = deliver;
 
-  // CRITICAL: useChannel called unconditionally at top level
-  const { send, messages, presence, status } = useChannel<string>({
-    channelId: `room:${roomId}`,
-    metadata: { game: "pinturilloelements", version: "0.1.0", ...safeMetadata },
-    history: "none",
-  });
-
-  // Process incoming messages (including history)
-  useEffect(() => {
-    for (const msg of messages) {
-      if (processedMessageIds.current.has(msg.id)) continue;
+  const handleMessage = useCallback(
+    (msg: Message<string>) => {
+      if (processedMessageIds.current.has(msg.id)) return;
       processedMessageIds.current.add(msg.id);
       try {
         const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
         const event: PortalEvent = { ...JSON.parse(content), senderId: msg.sender.id };
-        deliver(event, msg.id);
+        deliverRef.current(event, msg.id);
       } catch {
         // ignore non-JSON or malformed messages
       }
-    }
-  }, [messages, deliver]);
+    },
+    []
+  );
+
+  // CRITICAL: useChannel called unconditionally at top level
+  const { send, presence, status } = useChannel<string>({
+    channelId: `room:${roomId}`,
+    metadata: { game: "pinturilloelements", version: "0.1.0", ...safeMetadata },
+    history: "none",
+    onMessage: handleMessage,
+  });
 
   // Expose send function to parent. useLayoutEffect guarantees this runs
   // after the component commits, avoiding setState-during-render warnings.

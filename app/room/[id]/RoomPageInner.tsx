@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import RoomPageClient from "@/components/RoomPageClient";
 import JoinRoomProfile from "@/components/JoinRoomProfile";
 import { LOGO_COLLECTIONS } from "@/lib/gameLogic";
-import type { PetdexAvatar, RoomConfig, GameMode, Difficulty, LateJoinPolicy } from "@/lib/types";
+import type { PetdexAvatar, RoomConfig, LateJoinPolicy } from "@/lib/types";
 
 const HOST_STORAGE_PREFIX = "pinturillo-host:";
 
@@ -42,28 +42,18 @@ function readAvatar(searchParams: URLSearchParams): PetdexAvatar | undefined {
 }
 
 function readRoomConfig(searchParams: URLSearchParams): RoomConfig {
-  const modeParam = searchParams.get("mode") || "mixed";
-  const mode: GameMode = modeParam === "agents-only" ? "agents-only" : "mixed";
-
-  const capacityParam = parseInt(searchParams.get("capacity") || "6", 10);
-  const capacity = capacityParam >= 2 && capacityParam <= 8 ? capacityParam : 6;
-
-  const agentsParam = parseInt(searchParams.get("agents") || "0", 10);
-  const agentCount = Math.max(0, Math.min(6, agentsParam));
-
-  const diffParam = searchParams.get("difficulty") || "medium";
-  const difficulty: Difficulty =
-    diffParam === "easy" || diffParam === "hard" ? diffParam : "medium";
+  const countParam = parseInt(searchParams.get("count") || "6", 10);
+  const humanCount = countParam >= 2 && countParam <= 8 ? countParam : 6;
 
   const roundsParam = parseInt(searchParams.get("rounds") || "3", 10);
-  const totalRounds = roundsParam >= 3 && roundsParam <= 5 ? roundsParam : 3;
+  const roundCount = roundsParam >= 3 && roundsParam <= 5 ? roundsParam : 3;
 
   const drawTimeParam = parseInt(searchParams.get("drawTime") || "60", 10);
   const drawTimeSeconds =
     drawTimeParam === 45 || drawTimeParam === 90 ? drawTimeParam : 60;
 
   const lateJoinParam = searchParams.get("lateJoin") || "spectator";
-  const lateJoinPolicy: LateJoinPolicy =
+  const lateJoin: LateJoinPolicy =
     lateJoinParam === "closed" ? "closed" : "spectator";
 
   const knownCollectionIds = new Set(LOGO_COLLECTIONS.map((c) => c.id));
@@ -73,13 +63,10 @@ function readRoomConfig(searchParams: URLSearchParams): RoomConfig {
     .filter((id) => knownCollectionIds.has(id));
 
   return {
-    mode,
-    humanCapacity: capacity,
-    agentCount,
-    difficulty: agentCount > 0 ? difficulty : undefined,
-    totalRounds,
+    humanCount,
+    roundCount,
     drawTimeSeconds,
-    lateJoinPolicy,
+    lateJoin,
     logoCollections,
   };
 }
@@ -117,9 +104,22 @@ export default function RoomPageInner({ roomId }: { roomId: string }) {
 
   if (!hostResolved) {
     return (
-      <div className="flex h-screen items-center justify-center bg-zinc-900 text-sm text-zinc-400">
-        Entrando a la sala...
-      </div>
+      <main className="flex h-screen items-center justify-center bg-[#E7E2D4] px-4 text-[#111111]">
+        <div className="w-full max-w-[380px] border-2 border-[#111111] bg-[#FFFDF7] p-[26px] text-center shadow-[6px_6px_0_#111111]">
+          <p
+            className="text-[14px] font-bold uppercase tracking-[0.06em] text-[#111111]"
+            style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
+          >
+            Entrando a la sala
+          </p>
+          <p
+            className="mt-2 text-[14px] leading-[1.5] text-[#6B6B62]"
+            style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}
+          >
+            Sincronizando el estado inicial.
+          </p>
+        </div>
+      </main>
     );
   }
 

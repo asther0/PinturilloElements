@@ -2,7 +2,6 @@
 
 import { useRef, useEffect, useState } from "react";
 import { ChatMessage, PetdexAvatar, Player } from "@/lib/types";
-import { playerKindBadge } from "@/lib/gameLogic";
 import { petdexSpriteSrc } from "@/lib/petdexImage";
 
 function SpriteLoading() {
@@ -10,7 +9,7 @@ function SpriteLoading() {
     <span className="flex h-full w-full items-center justify-center">
       <svg
         aria-hidden="true"
-        className="h-2/3 w-2/3 animate-spin text-zinc-500"
+        className="h-2/3 w-2/3 animate-spin text-[#6B6B62]"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -90,19 +89,32 @@ export default function ChatPanel({
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-zinc-800 px-4 py-3">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Jugadores</h3>
+    <div className="flex h-full flex-col bg-[#E7E2D4]">
+      <div className="border-b-2 border-[#111111] bg-[#FFFDF7] px-4 py-3">
+        <h3
+          className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B6B62]"
+          style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
+        >
+          Jugadores
+        </h3>
         <div className="mt-2 flex flex-col gap-1">
           {players.map((p) => (
-            <div key={p.id} className="flex items-center justify-between text-sm">
+            <div key={p.id} className="flex items-center justify-between text-[13px]">
               <span className="flex items-center gap-1.5">
                 <AvatarThumb avatar={p.avatar} />
-                <span className={p.kind === "room-agent" ? "text-amber-300" : p.kind === "agent-byok" ? "text-sky-300" : ""}>
-                  {p.name} {playerKindBadge(p.kind)}
+                <span
+                  className="text-[#111111]"
+                  style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}
+                >
+                  {p.name}
                 </span>
               </span>
-              <span className="font-semibold text-emerald-400">{scores[p.id] || 0}</span>
+              <span
+                className="font-bold text-[#111111]"
+                style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
+              >
+                {scores[p.id] || 0}
+              </span>
             </div>
           ))}
         </div>
@@ -112,30 +124,26 @@ export default function ChatPanel({
         <div className="flex flex-col gap-2">
           {messages.map((msg) => {
             const msgPlayer = players.find((p) => p.id === msg.playerId);
-            const isAgent = msg.playerKind !== "human" && !msg.isSystem;
             const messageClass = msg.isSystem
-              ? "border-sky-700/50 bg-sky-950/40 text-sky-100"
+              ? "border-[#111111] bg-[#6FA8F5] text-[#111111]"
               : msg.isCorrect
-              ? "border-emerald-500/60 bg-emerald-950/60 text-emerald-100"
-              : isAgent
-              ? "border-amber-600/50 bg-amber-950/40 text-amber-100"
-              : "border-zinc-700 bg-zinc-800 text-zinc-100";
+                ? "border-[#111111] bg-[#3FC9B6] text-[#111111]"
+                : "border-[#111111] bg-[#FFFDF7] text-[#111111]";
 
             return (
               <div
                 key={msg.id}
-                className={`rounded-lg border px-3 py-2 text-sm ${messageClass}`}
+                className={`border-2 px-3 py-2 text-[13px] shadow-[3px_3px_0_#111111] ${messageClass}`}
+                style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}
               >
-                <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider opacity-80">
+                <div
+                  className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] opacity-90"
+                  style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
+                >
                   <AvatarThumb avatar={msgPlayer?.avatar} small />
-                  <span>
-                    {msg.playerName} {playerKindBadge(msg.playerKind)}
-                  </span>
+                  <span>{msg.playerName}</span>
                   {msg.isCorrect && (
-                    <span className="ml-auto text-emerald-300">Correcto</span>
-                  )}
-                  {isAgent && !msg.isCorrect && (
-                    <span className="ml-auto text-amber-300">Agente</span>
+                    <span className="ml-auto text-[#111111]">Correcto</span>
                   )}
                 </div>
                 <div>{msg.content}</div>
@@ -146,20 +154,22 @@ export default function ChatPanel({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="border-t border-zinc-800 px-4 py-3">
+      <form onSubmit={handleSubmit} className="border-t-2 border-[#111111] px-4 py-3">
         <div className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={canGuess ? "Escribe tu guess…" : "Solo puedes adivinar cuando no dibujas"}
+            placeholder={canGuess ? "Escribe tu guess..." : "Solo puedes adivinar cuando no dibujas"}
             disabled={!canGuess}
-            className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-emerald-500 disabled:opacity-50"
+            className="flex-1 border-2 border-[#111111] bg-[#FFFDF7] px-3 py-2 text-[13px] text-[#111111] placeholder-[#6B6B62] outline-none transition focus:shadow-[3px_3px_0_#111111] disabled:opacity-50"
+            style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}
           />
           <button
             type="submit"
             disabled={!canGuess || !input.trim()}
-            className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition-transform active:scale-[0.98] hover:bg-emerald-400 disabled:opacity-50"
+            className="border-2 border-[#111111] bg-[#7EB6FF] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#111111] shadow-[3px_3px_0_#111111] transition hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-50"
+            style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
           >
             Enviar
           </button>

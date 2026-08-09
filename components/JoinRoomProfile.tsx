@@ -48,7 +48,7 @@ function SpriteLoading() {
     <span className="flex h-full w-full items-center justify-center">
       <svg
         aria-hidden="true"
-        className="h-2/3 w-2/3 animate-spin text-zinc-500"
+        className="h-2/3 w-2/3 animate-spin text-[#6B6B62]"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -137,13 +137,31 @@ export default function JoinRoomProfile({ roomId }: { roomId: string }) {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-900 px-4 py-10 text-white">
-      <section className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl sm:p-8">
-        <p className="text-sm font-bold uppercase tracking-wider text-emerald-400">Unirse a la sala</p>
-        <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Elige tu perfil</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-400">Tu nombre y avatar aparecerán en la sala de espera.</p>
+    <main className="flex min-h-screen items-center justify-center bg-[#E7E2D4] px-4 py-10 text-[#111111]">
+      <section className="w-full max-w-lg rounded-[14px] border-2 border-[#111111] bg-[#FFFDF7] p-6 shadow-[8px_8px_0_#111111] sm:p-8">
+        <p
+          className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#7EB6FF]"
+          style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
+        >
+          Unirse a la sala
+        </p>
+        <h1
+          className="mt-2 text-[18px] font-bold uppercase tracking-[0.06em] text-[#111111]"
+          style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
+        >
+          Elige tu perfil
+        </h1>
+        <p className="mt-2 text-[15px] leading-[1.6] text-[#6B6B62]" style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}>
+          Tu nombre y avatar apareceran en la sala de espera.
+        </p>
 
-        <label className="mt-6 block text-sm font-semibold" htmlFor="join-room-name">Nombre</label>
+        <label
+          className="mt-6 block text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B6B62]"
+          htmlFor="join-room-name"
+          style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
+        >
+          Nombre
+        </label>
         <input
           id="join-room-name"
           value={name}
@@ -152,13 +170,19 @@ export default function JoinRoomProfile({ roomId }: { roomId: string }) {
           onKeyDown={(event) => {
             if (event.key === "Enter") continueToRoom();
           }}
-          className="mt-2 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-white outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30"
+          className="mt-2 w-full border-2 border-[#111111] bg-[#FFFDF7] px-4 py-3 text-[15px] text-[#111111] outline-none transition focus:shadow-[3px_3px_0_#111111]"
+          style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}
           placeholder="Tu nombre"
           autoComplete="name"
           autoFocus
         />
 
-        <p className="mt-6 text-sm font-semibold">Avatar Petdex</p>
+        <p
+          className="mt-6 text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B6B62]"
+          style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
+        >
+          Avatar Petdex
+        </p>
         <div className="mt-3 grid grid-cols-4 gap-3" aria-busy={loading}>
           {pets.map((pet) => (
             <button
@@ -167,20 +191,29 @@ export default function JoinRoomProfile({ roomId }: { roomId: string }) {
               onClick={() => setSelectedPet(pet)}
               aria-label={`Elegir ${pet.displayName}`}
               aria-pressed={selectedPet.slug === pet.slug}
-              className={`relative aspect-square overflow-hidden rounded-xl border bg-zinc-800 p-1 transition ${selectedPet.slug === pet.slug ? "border-emerald-400 ring-2 ring-emerald-400/40" : "border-zinc-700 hover:border-zinc-500"}`}
+              className={`relative aspect-square overflow-hidden border-2 bg-[#E7E2D4] p-1 transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none ${selectedPet.slug === pet.slug ? "border-[#7EB6FF] shadow-[3px_3px_0_#111111]" : "border-[#111111] hover:bg-[#FFFDF7]"}`}
+              style={{ borderRadius: "6px" }}
             >
               <PetSprite pet={pet} />
               <span className="sr-only">{pet.displayName}</span>
             </button>
           ))}
         </div>
-        {loading && <p className="mt-3 text-xs text-zinc-500">Cargando avatares.</p>}
+        {loading && (
+          <p
+            className="mt-3 text-[11px] text-[#6B6B62]"
+            style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
+          >
+            Cargando avatares.
+          </p>
+        )}
 
         <button
           type="button"
           onClick={continueToRoom}
           disabled={!name.trim()}
-          className="mt-8 w-full rounded-xl bg-emerald-500 px-4 py-3 font-bold text-zinc-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+          className="mt-8 w-full border-2 border-[#111111] bg-[#7EB6FF] px-4 py-3 text-[14px] font-bold uppercase tracking-[0.06em] text-[#111111] shadow-[5px_5px_0_#111111] transition hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0_#111111] disabled:cursor-not-allowed disabled:bg-[#E7E2D4] disabled:text-[#6B6B62] disabled:shadow-none active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+          style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
         >
           Continuar a la sala
         </button>

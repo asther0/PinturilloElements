@@ -1,11 +1,4 @@
-export type PlayerKind = "human" | "agent-byok" | "room-agent";
-
-export type AgentConfig = {
-  provider: "openai";
-  model: string;
-  // Raw API keys are deliberately excluded from this type.
-  // They must never be sent in Portal events, persisted, or logged.
-};
+export type PlayerKind = "human";
 
 export type PetdexAvatar = {
   slug: string;
@@ -24,7 +17,6 @@ export type Player = {
   name: string;
   score: number;
   kind: PlayerKind;
-  agentConfig?: AgentConfig;
   avatar?: PetdexAvatar;
 };
 
@@ -35,20 +27,13 @@ export type GamePhase =
   | "roundResult"
   | "gameOver";
 
-export type GameMode = "mixed" | "agents-only";
-
-export type Difficulty = "easy" | "medium" | "hard";
-
 export type LateJoinPolicy = "spectator" | "closed";
 
 export type RoomConfig = {
-  mode: GameMode;
-  humanCapacity: number;
-  agentCount: number;
-  difficulty?: Difficulty;
-  totalRounds: number;
+  humanCount: number;
+  roundCount: number;
   drawTimeSeconds: number;
-  lateJoinPolicy: LateJoinPolicy;
+  lateJoin: LateJoinPolicy;
   logoCollections: string[];
 };
 
@@ -140,11 +125,4 @@ export type RoomSnapshotPayload = {
     startedAt: number;
   };
   winnerId?: string;
-};
-
-export type ByokSession = {
-  playerId: string;
-  provider: "openai";
-  model: string;
-  apiKey: string;
 };

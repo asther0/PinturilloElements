@@ -2,6 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Colors */
+  --md-bg: #E7E2D4;
+  --md-surface: #FFFDF7;
+  --md-ink: #111111;
+  --md-primary: #7EB6FF;
+  --md-section: #6FA8F5;
+  --md-accent1: #F5D033;
+  --md-accent2: #3FC9B6;
+  --md-accent3: #F26B4E;
+  --md-accent4: #7C3AED;
+  --md-muted: #6B6B62;
+
+  /* Typography - Font Families
+     Wired to the next/font variables loaded in app/layout.tsx so the
+     self-hosted Space Mono / DM Sans assets ship with the page, with the
+     historical fallbacks kept for offline or first-paint resilience. */
+  --font-display: var(--font-space-mono), "Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-body: var(--font-dm-sans), "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Typography - Scale */
+  --text-badge: 11px;
+  --tracking-badge: 0.08em;
+  --text-caption: 12px;
+  --text-body: 15px;
+  --leading-body: 1.6;
+  --text-body-lg: 18px;
+  --leading-body-lg: 1.5;
+  --text-card-title: 18px;
+  --tracking-card-title: 0.06em;
+  --text-section: 34px;
+  --leading-section: 1.1;
+  --text-room-code: 38px;
+  --tracking-room-code: 0.12em;
+  --text-display: 60px;
+  --leading-display: 1.05;
+  --tracking-display: -0.01em;
+
+  /* Typography - Weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+
+  /* Spacing */
+  --spacing-unit: 4px;
+  --spacing-4: 4px;
+  --spacing-8: 8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-24: 24px;
+  --spacing-34: 34px;
+  --spacing-44: 44px;
+  --spacing-56: 56px;
+
+  /* Layout */
+  --page-max-width: 1220px;
+  --section-gap: 46px;
+  --card-padding: 22px;
+  --element-gap: 14px;
+
+  /* Border Radius */
+  --radius-button: 0px;
+  --radius-card: 14px;
+  --radius-tile: 6px;
+  --radius-input: 0px;
+
+  /* Borders & Shadows (hard offset) */
+  --md-border: 2px solid var(--md-ink);
+  --md-shadow-sm: 3px 3px 0 var(--md-ink);
+  --md-shadow: 5px 5px 0 var(--md-ink);
+  --md-shadow-lg: 8px 8px 0 var(--md-ink);
+
+  /* Surfaces */
+  --surface-canvas: #E7E2D4;
+  --surface-card: #FFFDF7;
+  --surface-section: #6FA8F5;
+  --surface-ink: #111111;
+}
+
 html,
 body {
   height: 100%;
@@ -9,7 +89,24 @@ body {
 }
 
 body {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-body);
+  color: var(--md-ink);
+  background-color: var(--md-bg);
+}
+
+@layer base {
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--md-muted);
+    opacity: 1;
+  }
+
+  input:focus,
+  textarea:focus,
+  button:focus-visible {
+    outline: none;
+    box-shadow: var(--md-shadow-sm);
+  }
 }
 
 @keyframes petdex-avatar-float {

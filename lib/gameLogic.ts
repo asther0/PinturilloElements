@@ -1,4 +1,4 @@
-import { Player, GameState, ChatMessage, RoundState, PlayerKind, PetdexAvatar, RoomConfig } from "./types";
+import { Player, GameState, ChatMessage, RoundState, PetdexAvatar, RoomConfig } from "./types";
 import { LOGO_CATALOG, LOGO_COLLECTIONS } from "./logoCollections";
 export { LOGO_COLLECTIONS } from "./logoCollections";
 
@@ -17,26 +17,6 @@ export function makeHumanPlayer(id: string, name: string, avatar?: PetdexAvatar)
   return { id, name, score: 0, kind: "human", avatar };
 }
 
-export function makeRoomAgentPlayer(id: string, name: string): Player {
-  return {
-    id,
-    name,
-    score: 0,
-    kind: "room-agent",
-    agentConfig: { provider: "openai", model: "gpt-4o-mini" },
-  };
-}
-
-export function makeByokPlayer(id: string, name: string, config: { provider: "openai"; model: string }): Player {
-  return {
-    id,
-    name,
-    score: 0,
-    kind: "agent-byok",
-    agentConfig: config,
-  };
-}
-
 export function createInitialState(
   roomId: string,
   localPlayerId: string,
@@ -46,17 +26,8 @@ export function createInitialState(
   localAvatar?: PetdexAvatar
 ): GameState {
   const players: Player[] = [];
-
-  if (roomConfig.mode === "mixed") {
-    const localPlayer = makeHumanPlayer(localPlayerId, localPlayerName, localAvatar);
-    players.push(localPlayer);
-  }
-
-  if (isHost) {
-    for (let i = 0; i < roomConfig.agentCount; i++) {
-      players.push(makeRoomAgentPlayer(`room-agent-${i}`, `Bot ${i + 1}`));
-    }
-  }
+  const localPlayer = makeHumanPlayer(localPlayerId, localPlayerName, localAvatar);
+  players.push(localPlayer);
 
   const scores: Record<string, number> = {};
   for (const p of players) scores[p.id] = 0;
@@ -66,7 +37,7 @@ export function createInitialState(
     phase: "lobby",
     players,
     currentRound: 1,
-    totalRounds: roomConfig.totalRounds,
+    totalRounds: roomConfig.roundCount,
     currentDrawerIndex: 0,
     wordsForRound: [],
     scores,
@@ -215,15 +186,4 @@ export function createChatMessage(
     isCorrect,
     timestamp: Date.now(),
   };
-}
-
-export function playerKindBadge(kind: PlayerKind): string {
-  switch (kind) {
-    case "human":
-      return "";
-    case "agent-byok":
-      return "BYOK";
-    case "room-agent":
-      return "BOT";
-  }
 }
