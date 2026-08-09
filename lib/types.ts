@@ -123,6 +123,7 @@ export type PortalEvent = PortalEventData & {
 
 export type RoomSnapshotPayload = {
   requestId: string;
+  targetPlayerId: string;
   roomConfig: RoomConfig;
   players: Player[];
   hostId: string;

@@ -213,6 +213,7 @@ export function PortalBridge({
   const [detailedPresence, setDetailedPresence] = useState<DetailedPresence>();
   const handlerRef = useRef<EventHandler | null>(null);
   const pendingEventsRef = useRef<PortalEvent[]>([]);
+  const pendingOutboundRef = useRef<{ event: PortalEvent; recipientId?: string }[]>([]);
   const processedEventIds = useRef(new Set<string>());
 
   const deliver = useCallback((event: PortalEvent, fallbackId?: string) => {
@@ -245,13 +246,21 @@ export function PortalBridge({
 
   const send = useCallback(
     (event: PortalEvent, recipientId?: string) => {
-      portalSendRef.current?.(event, recipientId);
+      if (portalSendRef.current) {
+        portalSendRef.current(event, recipientId);
+      } else {
+        pendingOutboundRef.current.push({ event, recipientId });
+      }
     },
     []
   );
 
   const onSendReady = useCallback((nextSend: (event: PortalEvent, recipientId?: string) => void) => {
     portalSendRef.current = nextSend;
+    const pending = pendingOutboundRef.current.splice(0);
+    for (const { event, recipientId } of pending) {
+      nextSend(event, recipientId);
+    }
   }, []);
 
   if (!HAS_KEY || !portalClient) {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { GameState, ChatMessage, Stroke, PortalEvent, PetdexAvatar, Player, RoomConfig, LateJoinPolicy, RoomSnapshotPayload } from "@/lib/types";
+import { GameState, ChatMessage, Stroke, PortalEvent, PetdexAvatar, Player, RoomConfig, LateJoinPolicy } from "@/lib/types";
 import {
   createInitialState,
   pickThreeWords,
@@ -23,6 +23,11 @@ import {
   makeRoomAgentPlayer,
   DRAWER_GUESS_BONUS,
 } from "@/lib/gameLogic";
+import {
+  buildRoomSnapshot,
+  isSnapshotDirectedTo,
+  applyRoomSnapshot,
+} from "@/lib/roomSnapshotProtocol";
 import { petdexSpriteSrc } from "@/lib/petdexImage";
 import {
   PortalBridge,
@@ -524,80 +529,26 @@ function RoomInner({
         const requesterId = event.senderId;
         const requestId = event.payload.requestId;
         if (!requesterId || !requestId) break;
-        // If detailedPresence is already available, reject unknown requesters.
-        // When it is not yet populated we allow the request: Portal transport
-        // already filters by recipientId, and a non-member simply never receives
-        // the unicast response.
-        const presence = portalRef.current.detailedPresence;
-        if (presence && !presence.participants.some((p) => p.id === requesterId)) break;
-        // Late-join snapshots never include the hidden word; late joiners are
-        // spectators and must not extract the current answer via the sync
-        // protocol.
-        const roundStateSnapshot = g.roundState
-          ? {
-              roundNumber: g.roundState.roundNumber,
-              drawerId: g.roundState.drawerId,
-              timeRemaining: g.roundState.timeRemaining,
-              startedAt: g.roundState.startedAt,
-            }
-          : undefined;
-        const snapshot: RoomSnapshotPayload = {
-          requestId,
-          roomConfig: g.roomConfig,
-          players: g.players,
-          hostId: g.hostId || localPlayerId,
-          phase: g.phase,
-          currentRound: g.currentRound,
-          totalRounds: g.totalRounds,
-          scores: g.scores,
-          currentDrawerIndex: g.currentDrawerIndex,
-          ...(roundStateSnapshot ? { roundState: roundStateSnapshot } : {}),
-          ...(g.winnerId ? { winnerId: g.winnerId } : {}),
-        };
-        // Stay well under Portal 2KB limit. If the payload is large, strip
-        // heavy per-player optional fields (avatars) before sending.
-        const encoder = new TextEncoder();
-        const rawSize = encoder.encode(JSON.stringify({ type: "roomSnapshot", payload: snapshot })).length;
-        if (rawSize > 1800) {
-          snapshot.players = snapshot.players.map((p) => ({ ...p, avatar: undefined }));
-        }
-        portalRef.current.send(
-          { type: "roomSnapshot", payload: snapshot },
-          requesterId
+        // Broadcast a snapshot correlated by requestId + targetPlayerId.
+        // Every connected client receives it, but only the requesting guest
+        // applies the payload. This avoids Portal unicast rejection of
+        // anonymous recipients and never leaks the secret word or choices.
+        const snapshot = buildRoomSnapshot(
+          g,
+          { requestId, targetPlayerId: requesterId },
+          g.hostId || localPlayerId
         );
+        portalRef.current.send({ type: "roomSnapshot", payload: snapshot });
         break;
       }
       case "roomSnapshot": {
         if (isHost) break;
         const payload = event.payload;
-        // Reject stale or unsolicited snapshots by matching the requestId.
-        if (payload.requestId !== lastSnapshotRequestIdRef.current) break;
+        // Apply only snapshots directed to this guest's active request.
+        if (!isSnapshotDirectedTo(payload, lastSnapshotRequestIdRef.current, localPlayerId)) break;
         if (payload.requestId === lastSnapshotResponseIdRef.current) break;
         lastSnapshotResponseIdRef.current = payload.requestId;
-        setGame((prev) => {
-          if (prev.hostId && prev.hostId !== payload.hostId) return prev;
-          return {
-            ...prev,
-            roomConfig: payload.roomConfig,
-            players: payload.players,
-            hostId: payload.hostId,
-            phase: payload.phase,
-            currentRound: payload.currentRound,
-            totalRounds: payload.totalRounds,
-            scores: payload.scores,
-            currentDrawerIndex: payload.currentDrawerIndex,
-            wordsForRound: [],
-            roundState: payload.roundState
-              ? {
-                  ...payload.roundState,
-                  word: payload.roundState.word ?? "",
-                  strokes: [],
-                  guesses: [],
-                }
-              : undefined,
-            ...(payload.winnerId !== undefined ? { winnerId: payload.winnerId } : {}),
-          };
-        });
+        setGame((prev) => applyRoomSnapshot(prev, payload));
         break;
       }
     }
