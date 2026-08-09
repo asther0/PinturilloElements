@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&amp;family=DM+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #E7E2D4; }
+  @keyframes md-marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+</style>
+</helmet>
+<div style="width: 2760px; padding: 44px 52px 72px; font-family: 'DM Sans', system-ui, sans-serif; color: #111; --md-primary:{{cPrimary}}; --md-section:{{cSection}}; --md-accent1:{{cAccent1}}; --md-accent2:{{cAccent2}}; --md-accent3:{{cAccent3}}; --md-accent4:{{cAccent4}};">
+
+  <!-- PROPOSAL HEADER -->
+  <div style="max-width: 1180px;">
+    <div style="display:inline-block; border:2px solid #111; background:var(--md-accent3,#F26B4E); color:#111; padding:5px 12px; font-family:'Space Mono',monospace; font-weight:700; font-size:12px; letter-spacing:0.14em; text-transform:uppercase; box-shadow:3px 3px 0 #111;">Propuesta de rediseño</div>
+    <h1 style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:46px; letter-spacing:-0.01em; margin:18px 0 10px;">PinturilloElements × MotherDuck</h1>
+    <p style="font-size:16px; line-height:1.55; color:#3a3a34; max-width:820px; margin:0;">El mismo producto y los mismos textos del código, revestidos con el lenguaje visual neobrutalista de MotherDuck: fondo crema, bordes negros gruesos, sombras duras, tipografía monoespaciada en mayúsculas y colores planos vivos. Las ilustraciones (pato mascota, nubes) van marcadas como <span style="font-family:'Space Mono',monospace;">placeholders</span> para arte real.</p>
+  </div>
+
+  <!-- STYLE STRIP -->
+  <div style="margin-top:28px; border:2px solid #111; background:#FFFDF7; box-shadow:6px 6px 0 #111; padding:22px 24px; max-width:1180px;">
+    <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; font-size:13px; margin-bottom:16px;">Sistema visual</div>
+    <div style="display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
+      <div>
+        <div style="font-family:'Space Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b6b62; margin-bottom:8px;">Paleta</div>
+        <div style="display:flex; gap:8px;">
+          <div style="width:52px; height:52px; border:2px solid #111; background:#E7E2D4;"></div>
+          <div style="width:52px; height:52px; border:2px solid #111; background:var(--md-accent1,#F5D033);"></div>
+          <div style="width:52px; height:52px; border:2px solid #111; background:var(--md-primary,#7EB6FF);"></div>
+          <div style="width:52px; height:52px; border:2px solid #111; background:var(--md-section,#6FA8F5);"></div>
+          <div style="width:52px; height:52px; border:2px solid #111; background:var(--md-accent3,#F26B4E);"></div>
+          <div style="width:52px; height:52px; border:2px solid #111; background:var(--md-accent2,#3FC9B6);"></div>
+          <div style="width:52px; height:52px; border:2px solid #111; background:#111;"></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'Space Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b6b62; margin-bottom:8px;">Botones</div>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <button style="border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:12px 18px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:13px; letter-spacing:0.04em; box-shadow:4px 4px 0 #111; cursor:pointer;">Empezar gratis</button>
+          <button style="border:2px solid #111; background:#FFFDF7; padding:12px 18px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:13px; letter-spacing:0.04em; box-shadow:4px 4px 0 #111; cursor:pointer;">Outline</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'Space Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b6b62; margin-bottom:8px;">Badges / Tipo</div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <span style="border:2px solid #111; background:var(--md-accent1,#F5D033); padding:4px 9px; font-family:'Space Mono',monospace; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">3 preguntas</span>
+          <span style="border:2px solid #111; background:var(--md-accent2,#3FC9B6); padding:4px 9px; font-family:'Space Mono',monospace; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">Agente</span>
+          <span style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:14px;">Aa · Space Mono</span>
+          <span style="font-family:'DM Sans',sans-serif; font-size:14px;">Aa · DM Sans</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 1: LANDING ============ -->
+  <div style="margin-top:46px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">01 · Landing</div>
+  <div id="1d" style="scroll-margin: 40px; font-family: Times">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+
+
+      </div>
+      <div style="width:1180px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:#E7E2D4; overflow:hidden;">
+        <div style="background:var(--md-accent1,#F5D033); border-bottom:2px solid #111; padding:11px 16px; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.05em;">Nueva temporada · dibuja logos de empresas tech &nbsp; <span style="text-decoration:underline;">Cómo se juega →</span></div>
+
+
+        <div style="padding:40px 40px 48px; display:flex; justify-content:center;">
+          <div style="width:560px; text-align:center;">
+            <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; letter-spacing:0.2em; color:#6b6b62;">Arma tu jugador</div>
+            <h2 style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:34px; margin:8px 0 24px;">Elige tu avatar</h2>
+
+            <!-- carrusel -->
+            <div style="display:flex; align-items:center; justify-content:center; gap:18px;">
+              <button style="width:52px; height:52px; border:2px solid #111; background:#FFFDF7; font-family:'Space Mono',monospace; font-weight:700; font-size:22px; box-shadow:3px 3px 0 #111; cursor:pointer;">‹</button>
+              <span style="width:70px; height:70px; border:2px solid #111; background:var(--md-primary,#7EB6FF); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:26px; opacity:0.6;">S</span>
+              <span style="width:132px; height:132px; border:2px solid #111; background:var(--md-accent3,#F26B4E); color:#fff; box-shadow:6px 6px 0 #111; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:58px;">N</span>
+              <span style="width:70px; height:70px; border:2px solid #111; background:var(--md-accent2,#3FC9B6); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:26px; opacity:0.6;">D</span>
+              <button style="width:52px; height:52px; border:2px solid #111; background:#FFFDF7; font-family:'Space Mono',monospace; font-weight:700; font-size:22px; box-shadow:3px 3px 0 #111; cursor:pointer;">›</button>
+            </div>
+            <div style="margin-top:12px; font-family:'Space Mono',monospace; font-weight:700; font-size:14px;">NezukoCoder</div>
+            <!-- dots -->
+            <div style="margin-top:12px; display:flex; gap:7px; justify-content:center;">
+              <span style="width:12px; height:12px; border:2px solid #111; background:#111;"></span>
+              <span style="width:12px; height:12px; border:2px solid #111; background:#FFFDF7;"></span>
+              <span style="width:12px; height:12px; border:2px solid #111; background:#FFFDF7;"></span>
+              <span style="width:12px; height:12px; border:2px solid #111; background:#FFFDF7;"></span>
+              <span style="width:12px; height:12px; border:2px solid #111; background:#FFFDF7;"></span>
+            </div>
+
+            <!-- nombre -->
+            <div style="margin-top:26px; text-align:left; max-width:360px; margin-left:auto; margin-right:auto;">
+              <label style="font-family:'Space Mono',monospace; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.08em;">Nombre del jugador</label>
+              <input type="text" value="Marta" style="width:100%; margin-top:6px; border:2px solid #111; background:#FFFDF7; padding:13px 16px; font-family:'DM Sans',sans-serif; font-size:15px; box-sizing:border-box;">
+            </div>
+
+            <!-- botones -->
+            <div style="margin-top:20px; max-width:360px; margin-left:auto; margin-right:auto; display:flex; flex-direction:column; gap:12px;">
+              <button style="border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:15px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:15px; box-shadow:5px 5px 0 #111; cursor:pointer;">Unirse a sala aleatoria →</button>
+              <button style="border:2px solid #111; background:#FFFDF7; padding:14px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:14px; box-shadow:4px 4px 0 #111; cursor:pointer;">Crear sala pública</button>
+            </div>
+            <div style="margin-top:16px; font-family:'DM Sans',sans-serif; font-size:14px; color:#3a3a34;">¿Tienes un código de sala? <a href="#" style="font-family:'Space Mono',monospace; font-weight:700; font-size:13px; text-transform:uppercase; color:#111; text-decoration:underline; text-underline-offset:3px;">Colócalo aquí →</a></div>
+          </div>
+        </div>
+      </div>
+    </div><div style="margin-top:14px; width:1220px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:#E7E2D4; overflow:hidden;">
+    <!-- announce bar -->
+
+    <!-- header -->
+
+    <!-- hero -->
+
+  </div>
+
+  <!-- ============ SCREEN 2 + 3 (row) ============ -->
+  <div style="display:flex; gap:56px; margin-top:46px; align-items:flex-start;">
+
+    <!-- LOBBY -->
+    <div>
+      <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">02 · Sala de espera</div>
+      <div style="margin-top:14px; width:600px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:#E7E2D4;">
+        <div style="background:var(--md-section,#6FA8F5); border-bottom:2px solid #111; padding:18px 22px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:20px;">Sala de espera</span>
+          <span style="border:2px solid #111; background:#FFFDF7; padding:4px 9px; font-family:'Space Mono',monospace; font-weight:700; font-size:11px; text-transform:uppercase;">Mixta</span>
+        </div>
+        <div style="padding:24px 22px;">
+          <div style="border:2px solid #111; background:var(--md-accent1,#F5D033); padding:16px; text-align:center; box-shadow:5px 5px 0 #111;">
+            <div style="font-family:'Space Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.1em;">Código de sala</div>
+            <div style="font-family:'Space Mono',monospace; font-weight:700; font-size:40px; letter-spacing:0.12em; margin-top:4px;">K7F2A9</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:18px;">
+            <button style="border:2px solid #111; background:#FFFDF7; padding:11px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; box-shadow:4px 4px 0 #111; cursor:pointer;">Copiar código</button>
+            <button style="border:2px solid #111; background:#FFFDF7; padding:11px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; box-shadow:4px 4px 0 #111; cursor:pointer;">Copiar link</button>
+          </div>
+          <div style="margin-top:22px; display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; letter-spacing:0.08em;">Roster</span>
+            <div style="display:flex; gap:6px;"><span style="border:2px solid #111; background:#FFFDF7; padding:3px 8px; font-family:'Space Mono',monospace; font-weight:700; font-size:10px; text-transform:uppercase;">2/6 humanos</span><span style="border:2px solid #111; background:#FFFDF7; padding:3px 8px; font-family:'Space Mono',monospace; font-weight:700; font-size:10px; text-transform:uppercase;">1/1 agentes</span></div>
+          </div>
+          <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; align-items:center; gap:12px; border:2px solid #111; background:#FFFDF7; padding:11px 13px;"><span style="width:30px; height:30px; border:2px solid #111; background:var(--md-primary,#7EB6FF); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:13px;">M</span><span style="font-weight:700;">Marta</span><span style="margin-left:auto; font-family:'Space Mono',monospace; font-size:11px; text-transform:uppercase; color:#6b6b62;">Tú</span></div>
+            <div style="display:flex; align-items:center; gap:12px; border:2px solid #111; background:#FFFDF7; padding:11px 13px;"><span style="width:30px; height:30px; border:2px solid #111; background:var(--md-accent3,#F26B4E); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:13px;">L</span><span style="font-weight:700;">Leo</span></div>
+            <div style="display:flex; align-items:center; gap:12px; border:2px solid #111; background:#FFFDF7; padding:11px 13px;"><span style="width:30px; height:30px; border:2px solid #111; background:var(--md-accent2,#3FC9B6); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:13px;">N</span><span style="font-weight:700;">NezukoCoder</span><span style="margin-left:8px; border:2px solid #111; background:var(--md-accent2,#3FC9B6); padding:2px 7px; font-family:'Space Mono',monospace; font-weight:700; font-size:10px; text-transform:uppercase;">Agente</span></div>
+          </div>
+          <button style="width:100%; margin-top:20px; border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:15px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:15px; box-shadow:5px 5px 0 #111; cursor:pointer;">Empezar partida</button>
+          <div style="margin-top:14px; text-align:center; font-family:'Space Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; text-decoration:underline;">← Volver al inicio</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHOOSING -->
+    <div>
+      <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">03 · Elegir empresa</div>
+      <div style="margin-top:14px; width:1080px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:var(--md-section,#6FA8F5);">
+        <div style="padding:34px 34px 12px; display:flex; align-items:flex-end; justify-content:space-between; gap:24px;">
+          <div>
+            <div style="font-family:'Space Mono',monospace; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.2em; color:#12305e;">Tu turno de dibujar</div>
+            <h2 style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:40px; line-height:1.05; margin:10px 0 0;">Elige una empresa<br>para dibujar</h2>
+          </div>
+          <div style="border:2px solid #111; background:var(--md-accent1,#F5D033); padding:12px 18px; box-shadow:5px 5px 0 #111; text-align:center;"><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:34px; line-height:1;">7</div><div style="font-family:'Space Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.1em;">segundos</div></div>
+        </div>
+        <div style="padding:20px 34px 26px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px;">
+          <div style="border:2px solid #111; background:#FFFDF7; box-shadow:6px 6px 0 #111;">
+            <div style="background:var(--md-primary,#7EB6FF); border-bottom:2px solid #111; padding:8px 14px; font-family:'Space Mono',monospace; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.14em;">Opción 01</div>
+            <div style="padding:26px 18px; display:flex; align-items:center; gap:14px;"><span style="width:46px; height:46px; border:2px solid #111; background:#111; color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:13px;">VE</span><span style="font-family:'Space Mono',monospace; font-weight:700; font-size:26px;">Vercel</span></div>
+            <div style="border-top:2px solid #111; padding:11px 18px; font-family:'Space Mono',monospace; font-weight:700; font-size:12px; text-transform:uppercase;">Seleccionar →</div>
+          </div>
+          <div style="border:2px solid #111; background:#FFFDF7; box-shadow:6px 6px 0 #111;">
+            <div style="background:var(--md-accent2,#3FC9B6); border-bottom:2px solid #111; padding:8px 14px; font-family:'Space Mono',monospace; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.14em;">Opción 02</div>
+            <div style="padding:26px 18px; display:flex; align-items:center; gap:14px;"><span style="width:46px; height:46px; border:2px solid #111; background:var(--md-accent2,#3FC9B6); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:13px;">SU</span><span style="font-family:'Space Mono',monospace; font-weight:700; font-size:24px;">Supabase</span></div>
+            <div style="border-top:2px solid #111; padding:11px 18px; font-family:'Space Mono',monospace; font-weight:700; font-size:12px; text-transform:uppercase;">Seleccionar →</div>
+          </div>
+          <div style="border:2px solid #111; background:#FFFDF7; box-shadow:6px 6px 0 #111;">
+            <div style="background:var(--md-accent3,#F26B4E); border-bottom:2px solid #111; padding:8px 14px; font-family:'Space Mono',monospace; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.14em; color:#fff;">Opción 03</div>
+            <div style="padding:26px 18px; display:flex; align-items:center; gap:14px;"><span style="width:46px; height:46px; border:2px solid #111; background:var(--md-accent4,#7c3aed); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:13px;">OB</span><span style="font-family:'Space Mono',monospace; font-weight:700; font-size:24px;">Obsidian</span></div>
+            <div style="border-top:2px solid #111; padding:11px 18px; font-family:'Space Mono',monospace; font-weight:700; font-size:12px; text-transform:uppercase;">Seleccionar →</div>
+          </div>
+        </div>
+        <div style="margin:0 34px 30px; border:2px solid #111; background:#E7E2D4; padding:12px 16px; font-family:'DM Sans',sans-serif; font-size:14px;">🔒 Esta elección es privada: solo tú, como dibujante, puedes ver estas opciones.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============ SCREEN 4: DRAWING ============ -->
+  <div style="margin-top:46px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">04 · Dibujo + Chat</div>
+  <div style="margin-top:14px; width:1220px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:#E7E2D4;">
+    <!-- top bar -->
+    <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:2px solid #111; padding:12px 18px;">
+      <div style="display:flex; gap:12px;">
+        <span style="border:2px solid #111; background:#FFFDF7; padding:8px 12px; font-family:'Space Mono',monospace; font-weight:700; font-size:13px; text-transform:uppercase;">Ronda 1 / 3</span>
+        <span style="border:2px solid #111; background:#FFFDF7; padding:8px 12px; font-family:'Space Mono',monospace; font-weight:700; font-size:13px; text-transform:uppercase;">Dibuja: <span style="color:var(--md-accent3,#F26B4E);">Marta</span></span>
+        <span style="border:2px solid #111; background:var(--md-accent1,#F5D033); padding:8px 12px; font-family:'Space Mono',monospace; font-weight:700; font-size:13px; text-transform:uppercase;">0:42</span>
+      </div>
+      <button style="border:2px solid #111; background:var(--md-accent3,#F26B4E); color:#fff; padding:9px 14px; font-family:'Space Mono',monospace; font-weight:700; font-size:12px; text-transform:uppercase; box-shadow:3px 3px 0 #111; cursor:pointer;">Terminar dibujo</button>
+    </div>
+    <div style="display:flex;">
+      <!-- canvas -->
+      <div style="position:relative; flex:1; background:#fff; border-right:2px solid #111; min-height:560px;">
+        <div style="position:absolute; left:50%; top:18px; transform:translateX(-50%); border:2px solid #111; background:var(--md-accent1,#F5D033); padding:8px 16px; font-family:'Space Mono',monospace; font-weight:700; font-size:13px; text-transform:uppercase; box-shadow:3px 3px 0 #111;">Dibuja: Vercel</div>
+        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;"><span style="border:2px dashed #999; padding:10px 14px; font-family:'Space Mono',monospace; font-size:12px; color:#999; text-transform:uppercase;">&lt;canvas&gt; · lienzo blanco · trazos en vivo</span></div>
+        <!-- toolbar -->
+        <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; border:2px solid #111; background:#111; padding:10px 14px; box-shadow:4px 4px 0 rgba(0,0,0,0.3);">
+          <span style="width:34px; height:34px; border:2px solid #fff; background:#fff; color:#111; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">✎</span>
+          <span style="width:34px; height:34px; border:2px solid #555; color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">⌫</span>
+          <span style="width:2px; height:26px; background:#555;"></span>
+          <span style="display:flex; gap:6px;"><span style="width:24px; height:24px; border:2px solid #fff; background:#000;"></span><span style="width:24px; height:24px; border:2px solid #333; background:#e74c3c;"></span><span style="width:24px; height:24px; border:2px solid #333; background:#3498db;"></span><span style="width:24px; height:24px; border:2px solid #333; background:#2ecc71;"></span><span style="width:24px; height:24px; border:2px solid #333; background:#f1c40f;"></span><span style="width:24px; height:24px; border:2px solid #333; background:#9b59b6;"></span></span>
+          <span style="width:2px; height:26px; background:#555;"></span>
+          <span style="display:flex; gap:6px;"><span style="border:2px solid #555; color:#fff; padding:4px 9px; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">F</span><span style="border:2px solid #fff; background:#fff; color:#111; padding:4px 9px; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">M</span><span style="border:2px solid #555; color:#fff; padding:4px 9px; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">G</span></span>
+        </div>
+      </div>
+      <!-- chat -->
+      <div style="width:340px; background:#E7E2D4; display:flex; flex-direction:column;">
+        <div style="border-bottom:2px solid #111; padding:14px 16px;">
+          <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; letter-spacing:0.08em;">Jugadores</div>
+          <div style="margin-top:10px; display:flex; flex-direction:column; gap:7px; font-size:14px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;"><span style="display:flex; align-items:center; gap:8px;"><span style="width:22px; height:22px; border:2px solid #111; background:var(--md-primary,#7EB6FF); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:10px;">M</span>Marta</span><span style="font-family:'Space Mono',monospace; font-weight:700;">120</span></div>
+            <div style="display:flex; align-items:center; justify-content:space-between;"><span style="display:flex; align-items:center; gap:8px;"><span style="width:22px; height:22px; border:2px solid #111; background:var(--md-accent3,#F26B4E); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:10px;">L</span>Leo</span><span style="font-family:'Space Mono',monospace; font-weight:700;">85</span></div>
+            <div style="display:flex; align-items:center; justify-content:space-between;"><span style="display:flex; align-items:center; gap:8px;"><span style="width:22px; height:22px; border:2px solid #111; background:var(--md-accent2,#3FC9B6); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:10px;">N</span>NezukoCoder <span style="font-family:'Space Mono',monospace; font-size:10px;">BOT</span></span><span style="font-family:'Space Mono',monospace; font-weight:700;">40</span></div>
+          </div>
+        </div>
+        <div style="flex:1; padding:14px 16px; display:flex; flex-direction:column; gap:10px;">
+          <div style="border:2px solid #111; background:#BFD8FF; padding:9px 11px;"><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; opacity:0.7;">Sistema</div><div style="font-size:14px; margin-top:2px;">Ronda 1 de 3: Marta dibuja</div></div>
+          <div style="border:2px solid #111; background:#FFFDF7; padding:9px 11px;"><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; opacity:0.7;">Leo</div><div style="font-size:14px; margin-top:2px;">¿es un triángulo?</div></div>
+          <div style="border:2px solid #111; background:var(--md-accent2,#3FC9B6); padding:9px 11px;"><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; display:flex; justify-content:space-between;"><span>NezukoCoder BOT</span><span>Agente</span></div><div style="font-size:14px; margin-top:2px;">github</div></div>
+          <div style="border:2px solid #111; background:var(--md-accent1,#F5D033); padding:9px 11px;"><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; display:flex; justify-content:space-between;"><span>Leo</span><span>✓ Correcto</span></div><div style="font-size:14px; margin-top:2px;">vercel</div></div>
+        </div>
+        <div style="border-top:2px solid #111; padding:12px 16px; display:flex; gap:8px;">
+          <input type="text" placeholder="Escribe tu guess…" style="flex:1; border:2px solid #111; background:#FFFDF7; padding:9px 11px; font-family:'DM Sans',sans-serif; font-size:14px;">
+          <button style="border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:9px 14px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; box-shadow:3px 3px 0 #111; cursor:pointer;">Enviar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 5: GAMEOVER ============ -->
+  <div style="margin-top:46px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">05 · Partida terminada</div>
+  <div style="margin-top:14px; width:940px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:var(--md-accent1,#F5D033); padding:44px 40px; text-align:center; position:relative; overflow:hidden;">
+    <div style="position:absolute; left:40px; top:40px; width:20px; height:20px; background:var(--md-primary,#7EB6FF); border:2px solid #111; transform:rotate(45deg);"></div>
+    <div style="position:absolute; right:56px; top:60px; width:16px; height:16px; background:var(--md-accent3,#F26B4E); border:2px solid #111; border-radius:50%;"></div>
+    <h2 style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:44px; margin:0;">Partida terminada</h2>
+    <div style="display:flex; gap:20px; justify-content:center; align-items:flex-end; margin-top:34px;">
+      <div style="border:2px solid #111; background:#FFFDF7; box-shadow:6px 6px 0 #111; width:200px;">
+        <div style="background:var(--md-primary,#7EB6FF); border-bottom:2px solid #111; padding:8px; font-family:'Space Mono',monospace; font-weight:700; font-size:11px; text-transform:uppercase;">🏆 Ganador</div>
+        <div style="padding:22px 14px;"><span style="width:44px; height:44px; border:2px solid #111; background:var(--md-accent3,#F26B4E); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; margin-bottom:8px;">L</span><div style="font-weight:700;">Leo</div><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:32px; margin-top:4px;">340</div></div>
+      </div>
+      <div style="border:2px solid #111; background:#FFFDF7; box-shadow:6px 6px 0 #111; width:180px; padding:20px 14px;"><span style="width:40px; height:40px; border:2px solid #111; background:var(--md-primary,#7EB6FF); display:inline-flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; margin-bottom:8px;">M</span><div style="font-weight:700;">Marta</div><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:28px; margin-top:4px;">220</div></div>
+      <div style="border:2px solid #111; background:#FFFDF7; box-shadow:6px 6px 0 #111; width:180px; padding:20px 14px;"><span style="width:40px; height:40px; border:2px solid #111; background:var(--md-accent2,#3FC9B6); display:inline-flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; margin-bottom:8px;">N</span><div style="font-weight:700;">NezukoCoder</div><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:28px; margin-top:4px;">90</div></div>
+    </div>
+    <button style="margin-top:34px; border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:17px 30px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:16px; box-shadow:5px 5px 0 #111; cursor:pointer;">Nueva partida</button>
+  </div>
+
+  <!-- ============ SCREEN 6+7: CREATE MODAL variants ============ -->
+  <div style="display:flex; gap:56px; margin-top:46px; align-items:flex-start;">
+    <div>
+      <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">06 · Crear sala · Mixta</div>
+      <div style="margin-top:14px; width:520px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:rgba(17,17,17,0.06); padding:34px;">
+        <div style="border:2px solid #111; background:#FFFDF7; box-shadow:8px 8px 0 #111;">
+          <div style="background:var(--md-primary,#7EB6FF); border-bottom:2px solid #111; padding:14px 20px; display:flex; justify-content:space-between; align-items:center;"><span style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:18px;">Crear sala pública</span><span style="font-family:'Space Mono',monospace; font-weight:700; font-size:18px;">✕</span></div>
+          <div style="padding:22px 20px;">
+            <p style="font-size:13.5px; color:#3a3a34; margin:0 0 16px;">Elige cómo quieres jugar. Cualquier persona puede unirse mientras haya espacio.</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div style="border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:12px; box-shadow:4px 4px 0 #111;"><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:13px; text-transform:uppercase;">Sala mixta</div><div style="font-size:11.5px; margin-top:3px;">Personas + agentes</div></div>
+              <div style="border:2px solid #111; background:#FFFDF7; padding:12px;"><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:13px; text-transform:uppercase;">Solo agentes</div><div style="font-size:11.5px; margin-top:3px; color:#6b6b62;">Espectador</div></div>
+            </div>
+            <div style="margin-top:20px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; letter-spacing:0.06em; display:flex; justify-content:space-between;"><span>Capacidad de jugadores</span><span style="color:var(--md-accent3,#F26B4E);">6 personas</span></div>
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:8px;">
+              <span style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center; font-family:'Space Mono',monospace; font-weight:700;">2</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center; font-family:'Space Mono',monospace; font-weight:700;">4</span>
+              <span style="border:2px solid #111; background:var(--md-accent1,#F5D033); padding:8px; text-align:center; font-family:'Space Mono',monospace; font-weight:700;">6</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center; font-family:'Space Mono',monospace; font-weight:700;">8</span>
+            </div>
+            <div style="margin-top:16px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; letter-spacing:0.06em; display:flex; justify-content:space-between;"><span>Agentes en la sala</span><span style="color:var(--md-accent3,#F26B4E);">1</span></div>
+            <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:8px;">
+              <span style="border:2px solid #111; background:#FFFDF7; padding:7px 0; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">0</span>
+              <span style="border:2px solid #111; background:var(--md-accent2,#3FC9B6); padding:7px 0; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">1</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:7px 0; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">2</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:7px 0; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">3</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:7px 0; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">4</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:7px 0; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">5</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:7px 0; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">6</span>
+            </div>
+            <button style="width:100%; margin-top:22px; border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:14px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:14px; box-shadow:4px 4px 0 #111; cursor:pointer;">Crear y entrar a la sala</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">07 · Crear sala · Solo agentes</div>
+      <div style="margin-top:14px; width:520px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:rgba(17,17,17,0.06); padding:34px;">
+        <div style="border:2px solid #111; background:#FFFDF7; box-shadow:8px 8px 0 #111;">
+          <div style="background:var(--md-accent1,#F5D033); border-bottom:2px solid #111; padding:14px 20px; display:flex; justify-content:space-between; align-items:center;"><span style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:18px;">Crear sala pública</span><span style="font-family:'Space Mono',monospace; font-weight:700; font-size:18px;">✕</span></div>
+          <div style="padding:22px 20px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div style="border:2px solid #111; background:#FFFDF7; padding:12px;"><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:13px; text-transform:uppercase;">Sala mixta</div></div>
+              <div style="border:2px solid #111; background:var(--md-accent1,#F5D033); padding:12px; box-shadow:4px 4px 0 #111;"><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:13px; text-transform:uppercase;">Solo agentes</div></div>
+            </div>
+            <div style="margin-top:20px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; letter-spacing:0.06em; display:flex; justify-content:space-between;"><span>Agentes en la partida</span><span style="color:var(--md-accent3,#F26B4E);">2</span></div>
+            <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:8px;">
+              <span style="border:2px solid #111; background:var(--md-accent1,#F5D033); padding:8px; text-align:center; font-family:'Space Mono',monospace; font-weight:700;">2</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center; font-family:'Space Mono',monospace; font-weight:700;">3</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center; font-family:'Space Mono',monospace; font-weight:700;">4</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center; font-family:'Space Mono',monospace; font-weight:700;">5</span>
+              <span style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center; font-family:'Space Mono',monospace; font-weight:700;">6</span>
+            </div>
+            <div style="margin-top:18px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; letter-spacing:0.06em;">Dificultad de los agentes</div>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+              <div style="border:2px solid #111; background:#FFFDF7; padding:10px 12px;"><span style="font-family:'Space Mono',monospace; font-weight:700; font-size:12.5px; text-transform:uppercase;">Fácil</span></div>
+              <div style="border:2px solid #111; background:var(--md-accent1,#F5D033); padding:10px 12px; box-shadow:3px 3px 0 #111;"><span style="font-family:'Space Mono',monospace; font-weight:700; font-size:12.5px; text-transform:uppercase;">Media</span></div>
+              <div style="border:2px solid #111; background:#FFFDF7; padding:10px 12px;"><span style="font-family:'Space Mono',monospace; font-weight:700; font-size:12.5px; text-transform:uppercase;">Difícil</span></div>
+            </div>
+            <button style="width:100%; margin-top:22px; border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:14px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:14px; box-shadow:4px 4px 0 #111; cursor:pointer;">Crear y entrar a la sala</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 8: AVATAR MODAL ============ -->
+  <div style="margin-top:46px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">08 · Catálogo de avatares</div>
+  <div style="margin-top:14px; width:900px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:#FFFDF7;">
+    <div style="background:var(--md-section,#6FA8F5); border-bottom:2px solid #111; padding:16px 22px; display:flex; justify-content:space-between; align-items:center;"><div><div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:20px;">Elige tu avatar Petdex</div><div style="font-size:13px; margin-top:2px;">1,284 opciones en el catálogo público</div></div><span style="font-family:'Space Mono',monospace; font-weight:700; font-size:20px;">✕</span></div>
+    <div style="border-bottom:2px solid #111; padding:16px 22px;"><input type="search" placeholder="Buscar por nombre, personaje o estilo" style="width:100%; border:2px solid #111; background:#E7E2D4; padding:11px 14px; font-family:'DM Sans',sans-serif; font-size:14px;"></div>
+    <div style="padding:22px; display:grid; grid-template-columns:repeat(8,1fr); gap:12px;">
+      <div style="border:2px solid #111; background:var(--md-accent1,#F5D033); padding:8px; text-align:center; box-shadow:3px 3px 0 #111;"><span style="width:100%; aspect-ratio:1; border:2px solid #111; background:var(--md-accent3,#F26B4E); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">N</span><div style="font-size:10px; font-weight:700; margin-top:6px;">NezukoCoder</div></div>
+      <div style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center;"><span style="width:100%; aspect-ratio:1; border:2px solid #111; background:var(--md-primary,#7EB6FF); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">S</span><div style="font-size:10px; font-weight:700; margin-top:6px;">Shinchan</div></div>
+      <div style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center;"><span style="width:100%; aspect-ratio:1; border:2px solid #111; background:var(--md-accent1,#F5D033); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">P</span><div style="font-size:10px; font-weight:700; margin-top:6px;">Pikachu</div></div>
+      <div style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center;"><span style="width:100%; aspect-ratio:1; border:2px solid #111; background:var(--md-accent2,#3FC9B6); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">D</span><div style="font-size:10px; font-weight:700; margin-top:6px;">Doraemon</div></div>
+      <div style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center;"><span style="width:100%; aspect-ratio:1; border:2px solid #111; background:var(--md-accent4,#7c3aed); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">L</span><div style="font-size:10px; font-weight:700; margin-top:6px;">Lulu</div></div>
+      <div style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center;"><span style="width:100%; aspect-ratio:1; border:2px solid #111; background:var(--md-accent3,#F26B4E); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">Q</span><div style="font-size:10px; font-weight:700; margin-top:6px;">QQpet</div></div>
+      <div style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center;"><span style="width:100%; aspect-ratio:1; border:2px solid #111; background:#0ea5e9; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">K</span><div style="font-size:10px; font-weight:700; margin-top:6px;">Koda</div></div>
+      <div style="border:2px solid #111; background:#FFFDF7; padding:8px; text-align:center;"><span style="width:100%; aspect-ratio:1; border:2px solid #111; background:var(--md-accent2,#3FC9B6); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">M</span><div style="font-size:10px; font-weight:700; margin-top:6px;">Mochi</div></div>
+    </div>
+    <div style="padding:0 22px 22px; text-align:center;"><button style="border:2px solid #111; background:#FFFDF7; padding:11px 18px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12.5px; box-shadow:4px 4px 0 #111; cursor:pointer;">Cargar más avatares</button></div>
+  </div>
+
+  <!-- ============ SCREEN 9+10: JOIN + LOADING ============ -->
+  <div style="display:flex; gap:56px; margin-top:46px; align-items:flex-start;">
+    <div>
+      <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">09 · JoinRoomProfile</div>
+      <div style="margin-top:14px; width:520px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:#E7E2D4; padding:36px;">
+        <div style="border:2px solid #111; background:#FFFDF7; box-shadow:8px 8px 0 #111; padding:28px 26px;">
+          <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12px; letter-spacing:0.1em; color:var(--md-accent3,#F26B4E);">Unirse a la sala</div>
+          <h2 style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:30px; margin:10px 0 4px;">Elige tu perfil</h2>
+          <p style="font-size:13.5px; color:#3a3a34; margin:0 0 18px;">Tu nombre y avatar aparecerán en la sala de espera.</p>
+          <label style="font-family:'Space Mono',monospace; font-weight:700; font-size:12px; text-transform:uppercase;">Nombre</label>
+          <input value="Leo" style="width:100%; margin-top:6px; border:2px solid #111; background:#E7E2D4; padding:12px 14px; font-family:'DM Sans',sans-serif; font-size:14px;">
+          <div style="margin-top:18px; font-family:'Space Mono',monospace; font-weight:700; font-size:12px; text-transform:uppercase;">Avatar Petdex</div>
+          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:8px;">
+            <span style="aspect-ratio:1; border:2px solid #111; background:var(--md-accent3,#F26B4E); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; box-shadow:3px 3px 0 #111;">N</span>
+            <span style="aspect-ratio:1; border:2px solid #111; background:var(--md-primary,#7EB6FF); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">S</span>
+            <span style="aspect-ratio:1; border:2px solid #111; background:var(--md-accent1,#F5D033); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">P</span>
+            <span style="aspect-ratio:1; border:2px solid #111; background:var(--md-accent2,#3FC9B6); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700;">D</span>
+          </div>
+          <button style="width:100%; margin-top:22px; border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:14px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:14px; box-shadow:4px 4px 0 #111; cursor:pointer;">Continuar a la sala</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:24px;">
+      <div>
+        <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">10 · Estados de carga</div>
+        <div style="margin-top:14px; display:flex; flex-direction:column; gap:16px;">
+          <div style="width:380px; border:2px solid #111; box-shadow:6px 6px 0 #111; background:#FFFDF7; padding:26px; text-align:center; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:14px;">Cargando sala…</div>
+          <div style="width:380px; border:2px solid #111; box-shadow:6px 6px 0 #111; background:#FFFDF7; padding:26px; text-align:center; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:14px; color:#6b6b62;">Entrando a la sala...</div>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">11 · Sala llena</div>
+        <div style="margin-top:14px; width:380px; border:2px solid #111; box-shadow:6px 6px 0 #111; background:var(--md-accent3,#F26B4E); padding:26px; text-align:center;">
+          <h3 style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; color:#fff; font-size:20px; margin:0;">La sala está llena</h3>
+          <p style="font-size:13px; color:#fff; margin:10px 0 16px;">El host ya alcanzó el límite de jugadores humanos.</p>
+          <span style="display:inline-block; border:2px solid #111; background:#FFFDF7; padding:10px 16px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12.5px; box-shadow:3px 3px 0 #111;">Volver al inicio</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 12+13: LOBBY variants ============ -->
+  <div style="display:flex; gap:56px; margin-top:46px; align-items:flex-start;">
+    <div>
+      <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">12 · Sala de espera · Solo agentes</div>
+      <div style="margin-top:14px; width:520px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:#E7E2D4;">
+        <div style="background:var(--md-accent1,#F5D033); border-bottom:2px solid #111; padding:16px 20px; display:flex; align-items:center; justify-content:space-between;"><span style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:18px;">Sala de espera</span><span style="border:2px solid #111; background:#FFFDF7; padding:3px 8px; font-family:'Space Mono',monospace; font-weight:700; font-size:10px; text-transform:uppercase;">Solo agentes</span></div>
+        <div style="padding:20px;">
+          <div style="border:2px solid #111; background:#FFFDF7; padding:12px; text-align:center; box-shadow:4px 4px 0 #111;"><div style="font-family:'Space Mono',monospace; font-size:11px; text-transform:uppercase;">Código</div><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:30px; letter-spacing:0.1em;">P3X9Q1</div></div>
+          <div style="margin-top:16px; display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:center; gap:11px; border:2px solid #111; background:#FFFDF7; padding:9px 12px;"><span style="width:26px; height:26px; border:2px solid #111; background:var(--md-accent3,#F26B4E); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">N</span><span style="font-weight:700; font-size:14px;">NezukoCoder</span><span style="margin-left:auto; border:2px solid #111; background:var(--md-accent2,#3FC9B6); padding:2px 6px; font-family:'Space Mono',monospace; font-weight:700; font-size:9px; text-transform:uppercase;">Agente</span></div>
+            <div style="display:flex; align-items:center; gap:11px; border:2px solid #111; background:#FFFDF7; padding:9px 12px;"><span style="width:26px; height:26px; border:2px solid #111; background:var(--md-primary,#7EB6FF); display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">S</span><span style="font-weight:700; font-size:14px;">Shinchan</span><span style="margin-left:auto; border:2px solid #111; background:var(--md-accent2,#3FC9B6); padding:2px 6px; font-family:'Space Mono',monospace; font-weight:700; font-size:9px; text-transform:uppercase;">Agente</span></div>
+          </div>
+          <div style="margin-top:12px; border:2px dashed #111; padding:10px 12px; font-size:12.5px; color:#3a3a34;">Tú (host): <b>espectador</b></div>
+          <button style="width:100%; margin-top:18px; border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:13px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:14px; box-shadow:4px 4px 0 #111; cursor:pointer;">Empezar partida</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">13 · Editar sala (host)</div>
+      <div style="margin-top:14px; width:420px; border:2px solid #111; box-shadow:10px 10px 0 #111; background:#FFFDF7; padding:22px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:18px;">Editar sala</span><span style="font-family:'Space Mono',monospace; font-weight:700;">✕</span></div>
+        <div style="margin-top:16px; font-family:'Space Mono',monospace; font-weight:700; font-size:11px; text-transform:uppercase;">Modo</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
+          <span style="border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:9px; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px; text-transform:uppercase;">Mixta</span>
+          <span style="border:2px solid #111; background:#FFFDF7; padding:9px; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px; text-transform:uppercase;">Solo agentes</span>
+        </div>
+        <div style="margin-top:14px; font-family:'Space Mono',monospace; font-weight:700; font-size:11px; text-transform:uppercase;">Capacidad humana</div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;">
+          <span style="border:2px solid #111; background:#FFFDF7; padding:7px; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">2</span>
+          <span style="border:2px solid #111; background:#FFFDF7; padding:7px; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">4</span>
+          <span style="border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:7px; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">6</span>
+          <span style="border:2px solid #111; background:#FFFDF7; padding:7px; text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px;">8</span>
+        </div>
+        <div style="margin-top:20px; display:flex; gap:10px;">
+          <button style="flex:1; border:2px solid #111; background:#FFFDF7; padding:11px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12.5px; box-shadow:3px 3px 0 #111; cursor:pointer;">Cancelar</button>
+          <button style="flex:1; border:2px solid #111; background:var(--md-primary,#7EB6FF); padding:11px; font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:12.5px; box-shadow:3px 3px 0 #111; cursor:pointer;">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 14+15: CHOOSING (waiting) + ROUND RESULT ============ -->
+  <div style="display:flex; gap:56px; margin-top:46px; align-items:flex-start;">
+    <div>
+      <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">14 · Esperando (no dibujante)</div>
+      <div style="margin-top:14px; width:460px; height:220px; border:2px solid #111; box-shadow:8px 8px 0 #111; background:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff;">
+        <div style="font-size:17px;">Marta está eligiendo palabra…</div>
+        <div style="margin-top:8px; font-family:'Space Mono',monospace; font-weight:700; font-size:13px;">Tiempo: 7s</div>
+      </div>
+    </div>
+    <div>
+      <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:14px;">15 · Fin de ronda</div>
+      <div style="margin-top:14px; width:640px; border:2px solid #111; box-shadow:8px 8px 0 #111; background:var(--md-accent2,#3FC9B6); padding:32px; text-align:center;">
+        <h3 style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; font-size:26px; margin:0;">Fin de ronda</h3>
+        <p style="font-size:14px; margin:10px 0 18px;">La palabra era: <b>Vercel</b></p>
+        <div style="display:flex; gap:14px; justify-content:center;">
+          <div style="border:2px solid #111; background:#FFFDF7; padding:12px 18px; box-shadow:4px 4px 0 #111;"><div style="font-weight:700; font-size:13px;">Marta</div><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:22px;">120</div></div>
+          <div style="border:2px solid #111; background:#FFFDF7; padding:12px 18px; box-shadow:4px 4px 0 #111;"><div style="font-weight:700; font-size:13px;">Leo</div><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:22px;">170</div></div>
+          <div style="border:2px solid #111; background:#FFFDF7; padding:12px 18px; box-shadow:4px 4px 0 #111;"><div style="font-weight:700; font-size:13px;">NezukoCoder</div><div style="font-family:'Space Mono',monospace; font-weight:700; font-size:22px;">40</div></div>
+        </div>
+        <p style="font-family:'Space Mono',monospace; font-weight:700; font-size:12px; text-transform:uppercase; margin-top:16px;">Siguiente ronda en 5s…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTE -->
+  <div style="margin-top:46px; max-width:1180px; border:2px solid #111; background:#FFFDF7; box-shadow:6px 6px 0 #111; padding:20px 24px; font-size:14px; line-height:1.6; color:#3a3a34;">
+    <div style="font-family:'Space Mono',monospace; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; font-size:13px; margin-bottom:8px; color:#111;">Notas de la propuesta</div>
+    Ya cubre las <b>15 pantallas/estados</b> del inventario completo: reskin puro — misma estructura, textos y estados del código real de PinturilloElements, solo cambia la capa visual al lenguaje MotherDuck. Los tiles de avatar (inicial sobre color) son el fallback real; el pato mascota y las nubes son placeholders para arte ilustrado. Si quieres, ajusto paleta/sombras o sustituyo los placeholders por ilustraciones si me pasas los assets.
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 2760, &quot;height&quot;: 1500 },
+  &quot;cPrimary&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#7EB6FF&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Sistema visual&quot; },
+  &quot;cSection&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#6FA8F5&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Sistema visual&quot; },
+  &quot;cAccent1&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#F5D033&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Sistema visual&quot; },
+  &quot;cAccent2&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#3FC9B6&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Sistema visual&quot; },
+  &quot;cAccent3&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#F26B4E&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Sistema visual&quot; },
+  &quot;cAccent4&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#7c3aed&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Sistema visual&quot; }
+}">class Component extends DCLogic {
+  renderVals() {
+    return {
+      cPrimary: this.props.cPrimary ?? "#7EB6FF",
+      cSection: this.props.cSection ?? "#6FA8F5",
+      cAccent1: this.props.cAccent1 ?? "#F5D033",
+      cAccent2: this.props.cAccent2 ?? "#3FC9B6",
+      cAccent3: this.props.cAccent3 ?? "#F26B4E",
+      cAccent4: this.props.cAccent4 ?? "#7c3aed",
+    };
+  }
+}</script>
+</body>
+</html>
