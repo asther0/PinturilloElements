@@ -1,4 +1,6 @@
 import { Player, GameState, ChatMessage, RoundState, PlayerKind, PetdexAvatar, RoomConfig } from "./types";
+import { LOGO_CATALOG, LOGO_COLLECTIONS } from "./logoCollections";
+export { LOGO_COLLECTIONS } from "./logoCollections";
 
 export const TECH_COMPANY_WORDS = [
   "Vercel",
@@ -82,69 +84,8 @@ export function isLocalPlayerDrawer(state: GameState, localPlayerId: string): bo
   return drawer?.id === localPlayerId;
 }
 
-// Open logo catalog: all TryElements logos from the public index at
-// https://www.tryelements.dev/r/logos-index.json (206 slugs). Embedded here
-// so the game never depends on a runtime fetch or a small fallback catalog.
-export const LOGO_CATALOG: string[] = [
-  "ably","agentmail","algolia","amp","anthropic","antigravity","apple","astro","auth0","aws-amplify",
-  "aws-api-gateway","aws-appsync","aws-athena","aws-bedrock","aws-cloudformation","aws-cloudfront","aws-cloudwatch","aws-codebuild","aws-codecommit","aws-codedeploy",
-  "aws-codepipeline","aws-cognito","aws-dynamodb","aws-ec2","aws-ecs","aws-eks","aws-elastic-beanstalk","aws-eventbridge","aws-fargate","aws-glue",
-  "aws-iam","aws-kinesis","aws-kms","aws-lambda","aws","aws-rds","aws-redshift","aws-route53","aws-s3","aws-sagemaker",
-  "aws-secrets-manager","aws-sns","aws-sqs","aws-step-functions","aws-vpc","axiom","bash","beincrypto","better-auth","biome",
-  "braintrust","browser-use","browserbase","bun","bytedance","cerebras","claude-code","claude","clerk","cline",
-  "cloudflare","cloudinary","codex","cohere","composio","continue","convex","cplusplus","crafter-station","css",
-  "cursor","datadog","daytona","deepl","deepseek","dify","discord","docker","drizzle","e2b",
-  "elevenlabs","exa","expo","fal","figma","fireworks","flyio","gemini","ghostty","github-copilot",
-  "github","gitlab","go","google","goose","grafana","grok","groq","html","hugging-face",
-  "hyperbrowser","inngest","instagram","java","javascript","json","kapso","kebo","kilo-code","kimi",
-  "kite","kotlin","langchain","langfuse","launchdarkly","linear","linkedin","lovable","luma","meilisearch",
-  "mem0","meta","microsoft","mistral","modal","mongodb","moonshot-ai","n8n","neon","nextjs",
-  "nodejs","notion","npm","nvidia","obsidian","ollama","openai","opencode","openhands","pagerduty",
-  "payload","perplexity","pika","planetscale","pnpm","polar","postgresql","posthog","prisma","python",
-  "qwen","railway","raycast","react","redis","render","replicate","replit","resend","roo-code",
-  "ruby","runway","rust","sambanova","sanity","sentry","sixtyfour","slack","snowflake","spotify",
-  "spring-boot","sql","stability","storybook","stripe","stytch","suno","supabase","svelte","swift",
-  "tailwindcss","terraform","threads","tinte","together","trae","trigger","turso","twilio","twitch",
-  "twitter","typescript","uploadthing","upstash","v0","vapi","vercel","vite","vuejs","windsurf",
-  "workos","xai","xata","yarn","zed","zep",
-];
-
-// Local collection mapping for logo sources. Remote TryElements collection
-// API support is not claimed; these lists are typed locally from the public
-// catalog. A selected collection restricts the picker to its words only.
-export type LogoCollection = {
-  id: string;
-  label: string;
-  words: string[];
-};
-
-export const LOGO_COLLECTIONS: LogoCollection[] = [
-  {
-    id: "aws",
-    label: "AWS",
-    words: LOGO_CATALOG.filter(
-      (slug) => slug === "aws" || slug.startsWith("aws-")
-    ),
-  },
-  {
-    id: "agentic-coding",
-    label: "Agentic Coding",
-    words: [
-      "claude-code","codex","cursor","cline","windsurf","github-copilot","goose","openhands","roo-code","continue",
-      "trae","opencode","browser-use","browserbase","composio","e2b","hyperbrowser","daytona","v0",
-    ],
-  },
-  {
-    id: "ai-services",
-    label: "AI Services",
-    words: [
-      "openai","anthropic","gemini","mistral","cohere","deepseek","qwen","moonshot-ai","cerebras","groq",
-      "together","fireworks","sambanova","nvidia","replicate","fal","stability","runway","luma","pika",
-      "suno","elevenlabs","perplexity","hugging-face","langchain","langfuse","mem0","zep","braintrust","exa",
-      "bytedance","xai","grok",
-    ],
-  },
-];
+// Logo catalog and collections are imported from the generated snapshot.
+// Run `bun run sync:logos` to refresh from the live TryElements registry.
 
 export function wordsForCollections(collectionIds: string[]): string[] | null {
   const selected = new Set(

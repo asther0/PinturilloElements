@@ -6,7 +6,8 @@
     "dev": "NEXT_DIST_DIR=.next-dev next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sync:logos": "bun run lib/syncLogoCollections.ts"
   },
   "dependencies": {
     "@portalsdk/core": "0.1.5",

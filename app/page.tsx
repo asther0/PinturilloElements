@@ -2,7 +2,7 @@
 
 import { useDeferredValue, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LOGO_COLLECTIONS } from "@/lib/gameLogic";
+import { LOGO_COLLECTIONS } from "@/lib/logoCollections";
 import { petdexSpriteSrc } from "@/lib/petdexImage";
 
 
@@ -227,6 +227,7 @@ export default function HomePage() {
   const [createDrawTime, setCreateDrawTime] = useState(60);
   const [createLateJoin, setCreateLateJoin] = useState<"spectator" | "closed">("spectator");
   const [createCollections, setCreateCollections] = useState<string[]>([]);
+  const [collectionSearch, setCollectionSearch] = useState("");
 
   const [curatedPets, setCuratedPets] = useState<PetdexPet[]>(FALLBACK_PETS);
   const [petsLoading, setPetsLoading] = useState(true);
@@ -339,12 +340,6 @@ export default function HomePage() {
     params.set("lateJoin", createLateJoin);
     params.set("collections", createCollections.join(","));
     router.push(`/room/${id}?${params.toString()}`);
-  };
-
-  const toggleCreateCollection = (id: string) => {
-    setCreateCollections((current) =>
-      current.includes(id) ? current.filter((c) => c !== id) : [...current, id]
-    );
   };
 
   const handleJoin = () => {
@@ -889,27 +884,65 @@ export default function HomePage() {
               <div className="flex items-baseline justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-bold text-white">Origen de logos</h3>
-                  <p className="mt-1 text-xs leading-5 text-zinc-500">El catálogo abierto usa los 206 logos de TryElements. Una colección limita las opciones.</p>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">
+                    El catalogo abierto usa los 206 logos de TryElements. Una coleccion limita las opciones.
+                  </p>
                 </div>
+                <span className="shrink-0 text-xs font-bold text-emerald-400">
+                  {createCollections.length > 0
+                    ? `${LOGO_COLLECTIONS.filter((c) => createCollections.includes(c.id)).reduce((sum, c) => sum + c.words.length, 0)} logos`
+                    : "206 logos"}
+                </span>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3">
+                <label className="relative block">
+                  <span className="sr-only">Buscar colecciones</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
+                  <input
+                    type="search"
+                    value={collectionSearch}
+                    onChange={(event) => setCollectionSearch(event.target.value)}
+                    placeholder="Filtrar colecciones..."
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-950 py-2.5 pl-9 pr-3 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-emerald-500"
+                  />
+                </label>
+              </div>
+              <div className="mt-2 max-h-[200px] overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950/50 p-2">
                 <button
                   type="button"
-                  onClick={() => setCreateCollections([])}
+                  onClick={() => {
+                    setCreateCollections([]);
+                    setCollectionSearch("");
+                  }}
                   aria-pressed={createCollections.length === 0}
-                  className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${createCollections.length === 0 ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-zinc-500 hover:text-white"}`}
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-bold transition ${createCollections.length === 0 ? "bg-emerald-500/15 text-emerald-300" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
                 >
-                  Catálogo abierto
+                  <span>Catalogo abierto</span>
+                  <span className="text-xs font-medium text-zinc-500">206</span>
                 </button>
-                {LOGO_COLLECTIONS.map((collection) => (
+                {LOGO_COLLECTIONS.filter((c) =>
+                  collectionSearch.trim()
+                    ? c.label.toLowerCase().includes(collectionSearch.trim().toLowerCase())
+                    : true
+                ).map((collection) => (
                   <button
                     type="button"
                     key={collection.id}
-                    onClick={() => toggleCreateCollection(collection.id)}
+                    onClick={() => {
+                      setCreateCollections((current) =>
+                        current.includes(collection.id)
+                          ? current.filter((id) => id !== collection.id)
+                          : [...current, collection.id]
+                      );
+                    }}
                     aria-pressed={createCollections.includes(collection.id)}
-                    className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${createCollections.includes(collection.id) ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-zinc-500 hover:text-white"}`}
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${createCollections.includes(collection.id) ? "bg-emerald-500/15 text-emerald-300" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
                   >
-                    {collection.label}
+                    <span className="font-semibold">{collection.label}</span>
+                    <span className="text-xs font-medium text-zinc-500">{collection.words.length}</span>
                   </button>
                 ))}
               </div>
