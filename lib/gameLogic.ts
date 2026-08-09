@@ -64,7 +64,7 @@ export function createInitialState(
     phase: "lobby",
     players,
     currentRound: 1,
-    totalRounds: TOTAL_ROUNDS,
+    totalRounds: roomConfig.totalRounds,
     currentDrawerIndex: 0,
     wordsForRound: [],
     scores,
@@ -82,8 +82,101 @@ export function isLocalPlayerDrawer(state: GameState, localPlayerId: string): bo
   return drawer?.id === localPlayerId;
 }
 
-export function pickThreeWords(): string[] {
-  const shuffled = [...TECH_COMPANY_WORDS].sort(() => Math.random() - 0.5);
+// Open logo catalog: all TryElements logos from the public index at
+// https://www.tryelements.dev/r/logos-index.json (206 slugs). Embedded here
+// so the game never depends on a runtime fetch or a small fallback catalog.
+export const LOGO_CATALOG: string[] = [
+  "ably","agentmail","algolia","amp","anthropic","antigravity","apple","astro","auth0","aws-amplify",
+  "aws-api-gateway","aws-appsync","aws-athena","aws-bedrock","aws-cloudformation","aws-cloudfront","aws-cloudwatch","aws-codebuild","aws-codecommit","aws-codedeploy",
+  "aws-codepipeline","aws-cognito","aws-dynamodb","aws-ec2","aws-ecs","aws-eks","aws-elastic-beanstalk","aws-eventbridge","aws-fargate","aws-glue",
+  "aws-iam","aws-kinesis","aws-kms","aws-lambda","aws","aws-rds","aws-redshift","aws-route53","aws-s3","aws-sagemaker",
+  "aws-secrets-manager","aws-sns","aws-sqs","aws-step-functions","aws-vpc","axiom","bash","beincrypto","better-auth","biome",
+  "braintrust","browser-use","browserbase","bun","bytedance","cerebras","claude-code","claude","clerk","cline",
+  "cloudflare","cloudinary","codex","cohere","composio","continue","convex","cplusplus","crafter-station","css",
+  "cursor","datadog","daytona","deepl","deepseek","dify","discord","docker","drizzle","e2b",
+  "elevenlabs","exa","expo","fal","figma","fireworks","flyio","gemini","ghostty","github-copilot",
+  "github","gitlab","go","google","goose","grafana","grok","groq","html","hugging-face",
+  "hyperbrowser","inngest","instagram","java","javascript","json","kapso","kebo","kilo-code","kimi",
+  "kite","kotlin","langchain","langfuse","launchdarkly","linear","linkedin","lovable","luma","meilisearch",
+  "mem0","meta","microsoft","mistral","modal","mongodb","moonshot-ai","n8n","neon","nextjs",
+  "nodejs","notion","npm","nvidia","obsidian","ollama","openai","opencode","openhands","pagerduty",
+  "payload","perplexity","pika","planetscale","pnpm","polar","postgresql","posthog","prisma","python",
+  "qwen","railway","raycast","react","redis","render","replicate","replit","resend","roo-code",
+  "ruby","runway","rust","sambanova","sanity","sentry","sixtyfour","slack","snowflake","spotify",
+  "spring-boot","sql","stability","storybook","stripe","stytch","suno","supabase","svelte","swift",
+  "tailwindcss","terraform","threads","tinte","together","trae","trigger","turso","twilio","twitch",
+  "twitter","typescript","uploadthing","upstash","v0","vapi","vercel","vite","vuejs","windsurf",
+  "workos","xai","xata","yarn","zed","zep",
+];
+
+// Local collection mapping for logo sources. Remote TryElements collection
+// API support is not claimed; these lists are typed locally from the public
+// catalog. A selected collection restricts the picker to its words only.
+export type LogoCollection = {
+  id: string;
+  label: string;
+  words: string[];
+};
+
+export const LOGO_COLLECTIONS: LogoCollection[] = [
+  {
+    id: "aws",
+    label: "AWS",
+    words: LOGO_CATALOG.filter(
+      (slug) => slug === "aws" || slug.startsWith("aws-")
+    ),
+  },
+  {
+    id: "agentic-coding",
+    label: "Agentic Coding",
+    words: [
+      "claude-code","codex","cursor","cline","windsurf","github-copilot","goose","openhands","roo-code","continue",
+      "trae","opencode","browser-use","browserbase","composio","e2b","hyperbrowser","daytona","v0",
+    ],
+  },
+  {
+    id: "ai-services",
+    label: "AI Services",
+    words: [
+      "openai","anthropic","gemini","mistral","cohere","deepseek","qwen","moonshot-ai","cerebras","groq",
+      "together","fireworks","sambanova","nvidia","replicate","fal","stability","runway","luma","pika",
+      "suno","elevenlabs","perplexity","hugging-face","langchain","langfuse","mem0","zep","braintrust","exa",
+      "bytedance","xai","grok",
+    ],
+  },
+];
+
+export function wordsForCollections(collectionIds: string[]): string[] | null {
+  const selected = new Set(
+    collectionIds.filter((id) => LOGO_COLLECTIONS.some((c) => c.id === id))
+  );
+  if (selected.size === 0) return null;
+
+  const mapped = new Set<string>();
+  for (const collection of LOGO_COLLECTIONS) {
+    if (selected.has(collection.id)) {
+      for (const word of collection.words) mapped.add(word);
+    }
+  }
+  if (mapped.size === 0) return null;
+
+  return [...mapped];
+}
+
+export function pickThreeWords(
+  collectionIds?: string[],
+  exclude?: ReadonlySet<string>
+): string[] {
+  const candidates =
+    collectionIds && collectionIds.length > 0
+      ? wordsForCollections(collectionIds) ?? LOGO_CATALOG
+      : LOGO_CATALOG;
+  const available =
+    exclude && exclude.size > 0
+      ? candidates.filter((word) => !exclude.has(word))
+      : candidates;
+  const pool = available.length > 0 ? available : candidates;
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, 3);
 }
 
@@ -110,9 +203,14 @@ export function advanceDrawer(state: GameState): GameState {
 }
 
 export function shouldEndGame(state: GameState): boolean {
-  const totalTurns = state.currentRound * state.players.length + state.currentDrawerIndex;
-  return totalTurns >= state.totalRounds * state.players.length;
+  const completedTurns =
+    (state.currentRound - 1) * state.players.length +
+    state.currentDrawerIndex +
+    1;
+  return completedTurns >= state.totalRounds * state.players.length;
 }
+
+export const DRAWER_GUESS_BONUS = 25;
 
 export function getWinner(state: GameState): Player | undefined {
   let best: Player | undefined;
@@ -127,7 +225,8 @@ export function getWinner(state: GameState): Player | undefined {
 export function createRoundState(
   roundNumber: number,
   drawerId: string,
-  word: string
+  word: string,
+  drawTimeSeconds: number = DRAW_TIME_SECONDS
 ): RoundState {
   return {
     roundNumber,
@@ -135,7 +234,7 @@ export function createRoundState(
     word,
     strokes: [],
     guesses: [],
-    timeRemaining: DRAW_TIME_SECONDS,
+    timeRemaining: drawTimeSeconds,
     startedAt: Date.now(),
   };
 }

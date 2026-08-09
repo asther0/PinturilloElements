@@ -4,23 +4,58 @@ import { useRef, useEffect, useState } from "react";
 import { ChatMessage, PetdexAvatar, Player } from "@/lib/types";
 import { playerKindBadge } from "@/lib/gameLogic";
 
+function SpriteLoading() {
+  return (
+    <span className="flex h-full w-full items-center justify-center">
+      <svg
+        aria-hidden="true"
+        className="h-2/3 w-2/3 animate-spin text-zinc-500"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      >
+        <path d="M21 12a9 9 0 1 1-6.22-8.56" />
+      </svg>
+    </span>
+  );
+}
+
 function AvatarThumb({ avatar, small = false }: { avatar?: PetdexAvatar; small?: boolean }) {
+  const spritesheetUrl = avatar?.spritesheetUrl;
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  // Hooks stay unconditional even when avatar is absent. Reset per-image state
+  // when the spritesheet URL changes so a previous image's loading/error state
+  // never leaks onto a new sprite.
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [spritesheetUrl]);
+
   if (!avatar) return null;
 
   return (
     <span
       role="img"
       aria-label={avatar.displayName}
-      className={`relative shrink-0 overflow-hidden rounded-sm text-center font-bold text-white ${
+      className={`relative block shrink-0 overflow-hidden rounded-sm font-bold text-white ${
         small ? "h-4 w-4 text-[8px] leading-4" : "h-5 w-5 text-[9px] leading-5"
       }`}
       style={{ backgroundColor: avatar.dominantColor || "#3f3f46" }}
     >
-      {avatar.displayName.slice(0, 1).toUpperCase()}
-      <span
+      {!loaded && !failed && <SpriteLoading />}
+      {failed && avatar.displayName.slice(0, 1).toUpperCase()}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         aria-hidden="true"
-        className="absolute inset-0 bg-left-top bg-no-repeat [background-size:800%_auto] [image-rendering:pixelated]"
-        style={{ backgroundImage: `url(${JSON.stringify(avatar.spritesheetUrl)})` }}
+        src={avatar.spritesheetUrl}
+        alt=""
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        className={`absolute left-0 top-0 h-auto w-[800%] max-w-none [image-rendering:pixelated] ${failed ? "hidden" : ""}`}
       />
     </span>
   );

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import RoomPageClient from "@/components/RoomPageClient";
 import JoinRoomProfile from "@/components/JoinRoomProfile";
-import type { PetdexAvatar, RoomConfig, GameMode, Difficulty } from "@/lib/types";
+import { LOGO_COLLECTIONS } from "@/lib/gameLogic";
+import type { PetdexAvatar, RoomConfig, GameMode, Difficulty, LateJoinPolicy } from "@/lib/types";
 
 const HOST_STORAGE_PREFIX = "pinturillo-host:";
 
@@ -45,7 +46,7 @@ function readRoomConfig(searchParams: URLSearchParams): RoomConfig {
   const mode: GameMode = modeParam === "agents-only" ? "agents-only" : "mixed";
 
   const capacityParam = parseInt(searchParams.get("capacity") || "6", 10);
-  const capacity = [2, 4, 6, 8].includes(capacityParam) ? capacityParam : 6;
+  const capacity = capacityParam >= 2 && capacityParam <= 8 ? capacityParam : 6;
 
   const agentsParam = parseInt(searchParams.get("agents") || "0", 10);
   const agentCount = Math.max(0, Math.min(6, agentsParam));
@@ -54,11 +55,32 @@ function readRoomConfig(searchParams: URLSearchParams): RoomConfig {
   const difficulty: Difficulty =
     diffParam === "easy" || diffParam === "hard" ? diffParam : "medium";
 
+  const roundsParam = parseInt(searchParams.get("rounds") || "3", 10);
+  const totalRounds = roundsParam >= 3 && roundsParam <= 5 ? roundsParam : 3;
+
+  const drawTimeParam = parseInt(searchParams.get("drawTime") || "60", 10);
+  const drawTimeSeconds =
+    drawTimeParam === 45 || drawTimeParam === 90 ? drawTimeParam : 60;
+
+  const lateJoinParam = searchParams.get("lateJoin") || "spectator";
+  const lateJoinPolicy: LateJoinPolicy =
+    lateJoinParam === "closed" ? "closed" : "spectator";
+
+  const knownCollectionIds = new Set(LOGO_COLLECTIONS.map((c) => c.id));
+  const logoCollections = (searchParams.get("collections") || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => knownCollectionIds.has(id));
+
   return {
     mode,
     humanCapacity: capacity,
     agentCount,
-    difficulty: mode === "agents-only" ? difficulty : undefined,
+    difficulty: agentCount > 0 ? difficulty : undefined,
+    totalRounds,
+    drawTimeSeconds,
+    lateJoinPolicy,
+    logoCollections,
   };
 }
 

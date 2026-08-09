@@ -42,6 +42,55 @@ function parsePet(value: unknown): PetdexPet | null {
   };
 }
 
+function SpriteLoading() {
+  return (
+    <span className="flex h-full w-full items-center justify-center">
+      <svg
+        aria-hidden="true"
+        className="h-2/3 w-2/3 animate-spin text-zinc-500"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      >
+        <path d="M21 12a9 9 0 1 1-6.22-8.56" />
+      </svg>
+    </span>
+  );
+}
+
+function PetSprite({ pet }: { pet: PetdexPet }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  // Reset per-image state when the spritesheet URL changes so the previous
+  // sprite's loading/error state never leaks onto a newly selected pet.
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [pet.spritesheetPath]);
+
+  return (
+    <span aria-hidden="true" className="absolute inset-0 overflow-hidden">
+      {!loaded && !failed && <SpriteLoading />}
+      {failed && (
+        <span className="flex h-full w-full items-center justify-center text-xs font-bold text-white">
+          {pet.displayName.slice(0, 1).toUpperCase()}
+        </span>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={pet.spritesheetPath}
+        alt=""
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        className={`absolute left-0 top-0 h-auto w-[800%] max-w-none [image-rendering:pixelated] ${failed ? "hidden" : ""}`}
+      />
+    </span>
+  );
+}
+
 export default function JoinRoomProfile({ roomId }: { roomId: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -119,7 +168,7 @@ export default function JoinRoomProfile({ roomId }: { roomId: string }) {
               aria-pressed={selectedPet.slug === pet.slug}
               className={`relative aspect-square overflow-hidden rounded-xl border bg-zinc-800 p-1 transition ${selectedPet.slug === pet.slug ? "border-emerald-400 ring-2 ring-emerald-400/40" : "border-zinc-700 hover:border-zinc-500"}`}
             >
-              <span className="absolute inset-0 bg-left-top bg-no-repeat [background-size:800%_auto] [image-rendering:pixelated]" style={{ backgroundImage: `url(${JSON.stringify(pet.spritesheetPath)})` }} />
+              <PetSprite pet={pet} />
               <span className="sr-only">{pet.displayName}</span>
             </button>
           ))}

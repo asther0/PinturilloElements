@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { GameState, ChatMessage, Stroke, PortalEvent, PetdexAvatar, Player, RoomConfig } from "@/lib/types";
+import { GameState, ChatMessage, Stroke, PortalEvent, PetdexAvatar, Player, RoomConfig, LateJoinPolicy } from "@/lib/types";
 import {
   createInitialState,
   pickThreeWords,
@@ -14,7 +14,6 @@ import {
   getWinner,
   createChatMessage,
   createSystemMessage,
-  DRAW_TIME_SECONDS,
   CHOOSE_WORD_TIME_SECONDS,
   ROUND_RESULT_SECONDS,
   isLocalPlayerDrawer,
@@ -22,6 +21,7 @@ import {
   playerKindBadge,
   makeHumanPlayer,
   makeRoomAgentPlayer,
+  DRAWER_GUESS_BONUS,
 } from "@/lib/gameLogic";
 import {
   PortalBridge,
@@ -32,21 +32,56 @@ import GameCanvas from "@/components/GameCanvas";
 import ChatPanel from "@/components/ChatPanel";
 import GameUI from "@/components/GameUI";
 
+function SpriteLoading() {
+  return (
+    <span className="flex h-full w-full items-center justify-center">
+      <svg
+        aria-hidden="true"
+        className="h-2/3 w-2/3 animate-spin text-zinc-500"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      >
+        <path d="M21 12a9 9 0 1 1-6.22-8.56" />
+      </svg>
+    </span>
+  );
+}
+
 function PlayerAvatar({ avatar }: { avatar?: PetdexAvatar }) {
+  const spritesheetUrl = avatar?.spritesheetUrl;
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  // Hooks stay unconditional even when avatar is absent. Reset per-image state
+  // when the spritesheet URL changes so a previous sprite's loading/error state
+  // never leaks onto a new avatar.
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [spritesheetUrl]);
+
   if (!avatar) return null;
 
   return (
     <span
       role="img"
       aria-label={avatar.displayName}
-      className="relative h-5 w-5 shrink-0 overflow-hidden rounded-sm text-center text-[9px] font-bold leading-5 text-white"
+      className="relative block h-5 w-5 shrink-0 overflow-hidden rounded-sm text-center text-[9px] font-bold leading-5 text-white"
       style={{ backgroundColor: avatar.dominantColor || "#3f3f46" }}
     >
-      {avatar.displayName.slice(0, 1).toUpperCase()}
-      <span
+      {!loaded && !failed && <SpriteLoading />}
+      {failed && avatar.displayName.slice(0, 1).toUpperCase()}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         aria-hidden="true"
-        className="absolute inset-0 bg-left-top bg-no-repeat [background-size:800%_auto] [image-rendering:pixelated]"
-        style={{ backgroundImage: `url(${JSON.stringify(avatar.spritesheetUrl)})` }}
+        src={avatar.spritesheetUrl}
+        alt=""
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        className={`absolute left-0 top-0 h-auto w-[800%] max-w-none [image-rendering:pixelated] ${failed ? "hidden" : ""}`}
       />
     </span>
   );
@@ -77,6 +112,14 @@ function getBotDrawing(word: string): Stroke[] {
   ];
 }
 
+// Heartbeat-based human liveness. Non-host humans announce themselves every
+// HEARTBEAT_INTERVAL_MS while the lobby is open; the host prunes a non-host
+// human after HUMAN_TIMEOUT_MS without a heartbeat (or detailed presence
+// sighting). PRUNE_INTERVAL_MS is how often the host re-checks liveness.
+const HEARTBEAT_INTERVAL_MS = 8000;
+const HUMAN_TIMEOUT_MS = 30000;
+const PRUNE_INTERVAL_MS = 5000;
+
 function sameLobbyPlayers(left: Player[], right: Player[]): boolean {
   return left.length === right.length && left.every((player, index) => {
     const candidate = right[index];
@@ -85,7 +128,16 @@ function sameLobbyPlayers(left: Player[], right: Player[]): boolean {
 }
 
 function sameRoomConfig(left: RoomConfig, right: RoomConfig): boolean {
-  return left.mode === right.mode && left.humanCapacity === right.humanCapacity && left.agentCount === right.agentCount && left.difficulty === right.difficulty;
+  return (
+    left.mode === right.mode &&
+    left.humanCapacity === right.humanCapacity &&
+    left.agentCount === right.agentCount &&
+    left.difficulty === right.difficulty &&
+    left.totalRounds === right.totalRounds &&
+    left.drawTimeSeconds === right.drawTimeSeconds &&
+    left.lateJoinPolicy === right.lateJoinPolicy &&
+    left.logoCollections.join(",") === right.logoCollections.join(",")
+  );
 }
 
 const TRY_ELEMENTS_LOGOS: Record<string, string> = {
@@ -201,19 +253,26 @@ function RoomInner({
   const [phaseTimeLeft, setPhaseTimeLeft] = useState(0);
   const [localStrokes, setLocalStrokes] = useState<Stroke[]>([]);
   const [copiedCode, setCopiedCode] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [roomFull, setRoomFull] = useState(false);
+  const [roomClosed, setRoomClosed] = useState(false);
+  const [lateWaiting, setLateWaiting] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editDraft, setEditDraft] = useState<{
     mode: "mixed" | "agents-only";
     humanCapacity: number;
     agentCount: number;
     difficulty: "easy" | "medium" | "hard";
+    totalRounds: number;
+    drawTimeSeconds: number;
+    lateJoin: LateJoinPolicy;
   }>({
     mode: roomConfig.mode,
     humanCapacity: roomConfig.humanCapacity,
     agentCount: roomConfig.agentCount,
     difficulty: roomConfig.difficulty || "medium",
+    totalRounds: roomConfig.totalRounds,
+    drawTimeSeconds: roomConfig.drawTimeSeconds,
+    lateJoin: roomConfig.lateJoinPolicy,
   });
   const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const phaseTimeRef = useRef(0);
@@ -222,8 +281,12 @@ function RoomInner({
   const hasAnnouncedJoinRef = useRef(false);
   const lastLobbySyncSignatureRef = useRef<string | null>(null);
   const pendingJoinsRef = useRef(new Set<string>());
-  const presenceGraceRef = useRef(new Map<string, number>());
-  const presenceReevalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSeenRef = useRef(new Map<string, number>());
+  const pruneIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const usedWordsRef = useRef(new Set<string>());
+  // Player ids that already earned the drawer bonus for the current round, so
+  // duplicate correct guesses never grant it twice to the same guesser.
+  const drawerBonusAwardedRef = useRef(new Set<string>());
   gameRef.current = game;
 
   const isDrawer = isLocalPlayerDrawer(game, localPlayerId);
@@ -251,14 +314,16 @@ function RoomInner({
       }
       case "wordChosen": {
         const word = event.payload.word;
+        drawerBonusAwardedRef.current.clear();
         setChosenWord(word);
         setLocalStrokes([]);
+        if (g.hostId === localPlayerId) usedWordsRef.current.add(word);
         const drawer = getCurrentDrawer(g);
         if (drawer) {
           setGame((prev) => ({
             ...prev,
             phase: "drawing",
-            roundState: createRoundState(prev.currentRound, drawer.id, word),
+            roundState: createRoundState(prev.currentRound, drawer.id, word, g.roomConfig.drawTimeSeconds),
           }));
           setMessages((prev) => [
             ...prev,
@@ -268,14 +333,43 @@ function RoomInner({
         break;
       }
       case "stroke": {
-        setLocalStrokes((prev) => [...prev, event.payload]);
+        if (event.payload.playerId !== g.roundState?.drawerId) break;
+        setLocalStrokes((prev) => [...prev, event.payload.stroke]);
         setGame((prev) => {
           if (!prev.roundState) return prev;
           return {
             ...prev,
             roundState: {
               ...prev.roundState,
-              strokes: [...prev.roundState.strokes, event.payload],
+              strokes: [...prev.roundState.strokes, event.payload.stroke],
+            },
+          };
+        });
+        break;
+      }
+      case "undoLastStroke": {
+        setLocalStrokes((prev) => prev.slice(0, -1));
+        setGame((prev) => {
+          if (!prev.roundState) return prev;
+          return {
+            ...prev,
+            roundState: {
+              ...prev.roundState,
+              strokes: prev.roundState.strokes.slice(0, -1),
+            },
+          };
+        });
+        break;
+      }
+      case "clearCanvas": {
+        setLocalStrokes([]);
+        setGame((prev) => {
+          if (!prev.roundState) return prev;
+          return {
+            ...prev,
+            roundState: {
+              ...prev.roundState,
+              strokes: [],
             },
           };
         });
@@ -284,19 +378,29 @@ function RoomInner({
       case "guess": {
         const guesser = g.players.find((p) => p.id === event.payload.playerId);
         if (!guesser) break;
+        if (guesser.id === g.roundState?.drawerId) break;
         const word = g.roundState?.word;
         const correct = word ? checkGuess(event.payload.content, word) : false;
         const msg = createChatMessage(guesser, event.payload.content, true, correct);
         setMessages((prev) => [...prev, msg]);
         if (correct && word) {
-          const score = calculateGuessScore(g.roundState?.timeRemaining || 0);
+          const score = calculateGuessScore(g.roundState?.timeRemaining || 0, g.roomConfig.drawTimeSeconds);
+          const drawerId = g.roundState?.drawerId;
+          const firstCorrect = !drawerBonusAwardedRef.current.has(guesser.id);
+          if (firstCorrect) drawerBonusAwardedRef.current.add(guesser.id);
           setGame((prev) => {
             const newScores = { ...prev.scores, [guesser.id]: (prev.scores[guesser.id] || 0) + score };
+            if (firstCorrect && drawerId) {
+              newScores[drawerId] = (newScores[drawerId] || 0) + DRAWER_GUESS_BONUS;
+            }
             return { ...prev, scores: newScores };
           });
           setMessages((prev) => [
             ...prev,
             createSystemMessage(`${guesser.name} acertó (+${score} pts)`),
+            ...(firstCorrect && drawerId
+              ? [createSystemMessage(`El dibujante suma +${DRAWER_GUESS_BONUS} pts por la respuesta de ${guesser.name}`)]
+              : []),
           ]);
         }
         break;
@@ -322,8 +426,23 @@ function RoomInner({
         break;
       }
       case "playerJoin": {
-        if (g.hostId !== localPlayerId || g.phase !== "lobby") break;
+        if (g.hostId !== localPlayerId) break;
         const player = event.payload.player;
+        lastSeenRef.current.set(player.id, Date.now());
+        if (g.phase !== "lobby") {
+          if (g.roomConfig.lateJoinPolicy === "closed") {
+            portalRef.current.send({
+              type: "joinRejected",
+              payload: { playerId: player.id, reason: "closed" },
+            });
+          } else {
+            portalRef.current.send({
+              type: "lateJoinWaiting",
+              payload: { hostId: localPlayerId },
+            });
+          }
+          break;
+        }
         const isHuman = player.kind === "human" && Boolean(player.id) && Boolean(player.name.trim());
         const alreadyPresent =
           g.players.some((p) => p.id === player.id) || pendingJoinsRef.current.has(player.id);
@@ -350,7 +469,7 @@ function RoomInner({
       }
       case "playerLeave": {
         if (g.hostId !== localPlayerId || g.phase !== "lobby") break;
-        presenceGraceRef.current.delete(event.payload.playerId);
+        lastSeenRef.current.delete(event.payload.playerId);
         pendingJoinsRef.current.delete(event.payload.playerId);
         setGame((prev) => {
           const leavingPlayer = prev.players.find((player) => player.id === event.payload.playerId);
@@ -363,8 +482,15 @@ function RoomInner({
         });
         break;
       }
+      case "playerHeartbeat": {
+        if (g.hostId !== localPlayerId || g.phase !== "lobby") break;
+        lastSeenRef.current.set(event.payload.playerId, Date.now());
+        break;
+      }
       case "joinRejected": {
-        if (event.payload.playerId === localPlayerId && event.payload.reason === "full") setRoomFull(true);
+        if (event.payload.playerId !== localPlayerId) break;
+        if (event.payload.reason === "full") setRoomFull(true);
+        if (event.payload.reason === "closed") setRoomClosed(true);
         break;
       }
       case "lobbySync": {
@@ -382,6 +508,12 @@ function RoomInner({
             roomConfig: event.payload.roomConfig,
           };
         });
+        break;
+      }
+      case "lateJoinWaiting": {
+        if (g.hostId === localPlayerId) break;
+        if (g.players.some((p) => p.id === localPlayerId)) break;
+        setLateWaiting(true);
         break;
       }
     }
@@ -406,6 +538,21 @@ function RoomInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHost, portal.connected, roomId]);
 
+  // Non-host humans announce liveness to the host: once on Portal readiness
+  // and then every HEARTBEAT_INTERVAL_MS while the lobby is open. The host
+  // uses these heartbeats to prune silent humans.
+  useEffect(() => {
+    if (isHost || game.phase !== "lobby" || game.roomConfig.mode !== "mixed") return;
+    if (!portal.connected) return;
+    const sendHeartbeat = () => {
+      portalRef.current.send({ type: "playerHeartbeat", payload: { playerId: localPlayerId } });
+    };
+    sendHeartbeat();
+    const heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+    return () => clearInterval(heartbeatTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, game.phase, game.roomConfig.mode, portal.connected, localPlayerId]);
+
   // The host is the authority for the lobby roster. Re-publish its initial
   // state once connected and every accepted roster update.
   useEffect(() => {
@@ -429,49 +576,36 @@ function RoomInner({
     });
   }, [game.phase, game.players, game.roomConfig, isHost, localPlayerId, portal]);
 
-  // In a live Portal room, detailed presence is the source of truth for human
-  // connections. Agents and the designated host are room-owned and remain in
-  // the roster even if they are missing from a presence snapshot.
-  // A short grace period prevents pruning a human that joined just before the
-  // snapshot updated. If a human is kept only by grace, we schedule a
-  // timeout so they are pruned when the grace expires even if detailedPresence
-  // never produces another delta.
+  // Host-side human liveness while in the lobby. The host tracks the last
+  // heartbeat per non-host human. A non-host human that stays silent for
+  // HUMAN_TIMEOUT_MS is removed from the roster, its score, and any pending
+  // join. Liveness is fed only by playerHeartbeat events and playerJoin; a
+  // stale Portal presence snapshot can never mask an expired human. The host
+  // stays alive independently. The periodic recheck only mutates game state
+  // when a player actually expires, so it never causes an update loop.
   useEffect(() => {
     if (!isHost || game.phase !== "lobby") {
-      if (presenceReevalTimeoutRef.current) {
-        clearTimeout(presenceReevalTimeoutRef.current);
-        presenceReevalTimeoutRef.current = null;
+      if (pruneIntervalRef.current) {
+        clearInterval(pruneIntervalRef.current);
+        pruneIntervalRef.current = null;
       }
       return;
     }
-    if (!portal.detailedPresence) return;
 
-    const connectedHumanIds = new Set(
-      portal.detailedPresence.participants.flatMap((participant) =>
-        participant.metadata?.playerKind === "human" && typeof participant.metadata.playerId === "string"
-          ? [participant.metadata.playerId]
-          : []
-      )
-    );
-    const now = Date.now();
-    for (const id of connectedHumanIds) {
-      presenceGraceRef.current.set(id, now);
-    }
-    presenceGraceRef.current.set(localPlayerId, now);
-    const GRACE_MS = 5000;
-
-    const applyFilter = (filterNow: number, currentConnectedIds: Set<string>) => {
+    const applyFilter = (filterNow: number) => {
       setGame((prev) => {
         if (prev.phase !== "lobby" || prev.hostId !== localPlayerId) return prev;
+        let removed = false;
         const players = prev.players.filter((player) => {
           if (player.kind !== "human" || player.id === prev.hostId) return true;
-          if (currentConnectedIds.has(player.id)) return true;
-          const lastSeen = presenceGraceRef.current.get(player.id);
-          if (lastSeen && filterNow - lastSeen <= GRACE_MS) return true;
-          presenceGraceRef.current.delete(player.id);
+          const lastSeen = lastSeenRef.current.get(player.id);
+          if (lastSeen && filterNow - lastSeen <= HUMAN_TIMEOUT_MS) return true;
+          lastSeenRef.current.delete(player.id);
+          pendingJoinsRef.current.delete(player.id);
+          removed = true;
           return false;
         });
-        if (players.length === prev.players.length) return prev;
+        if (!removed) return prev;
         const scores = Object.fromEntries(
           Object.entries(prev.scores).filter(([playerId]) => players.some((p) => p.id === playerId))
         );
@@ -479,68 +613,24 @@ function RoomInner({
       });
     };
 
-    applyFilter(now, connectedHumanIds);
-
-    const scheduleReeval = () => {
-      if (presenceReevalTimeoutRef.current) {
-        clearTimeout(presenceReevalTimeoutRef.current);
-        presenceReevalTimeoutRef.current = null;
-      }
-      const g = gameRef.current;
-      const dp = portalRef.current.detailedPresence;
-      const latestConnectedIds = new Set(
-        dp?.participants.flatMap((participant) =>
-          participant.metadata?.playerKind === "human" && typeof participant.metadata.playerId === "string"
-            ? [participant.metadata.playerId]
-            : []
-        ) || []
-      );
-      const reevalNow = Date.now();
-      let nextExpiry = Infinity;
-      for (const p of g.players) {
-        if (p.kind === "human" && p.id !== g.hostId && !latestConnectedIds.has(p.id)) {
-          const lastSeen = presenceGraceRef.current.get(p.id);
-          if (lastSeen) {
-            const remaining = GRACE_MS - (reevalNow - lastSeen);
-            if (remaining > 0 && remaining < nextExpiry) {
-              nextExpiry = remaining;
-            }
-          }
-        }
-      }
-      if (nextExpiry !== Infinity) {
-        presenceReevalTimeoutRef.current = setTimeout(() => {
-          presenceReevalTimeoutRef.current = null;
-          const g2 = gameRef.current;
-          if (g2.phase !== "lobby" || g2.hostId !== localPlayerId) return;
-          const dp2 = portalRef.current.detailedPresence;
-          const latestConnectedIds2 = new Set(
-            dp2?.participants.flatMap((participant) =>
-              participant.metadata?.playerKind === "human" && typeof participant.metadata.playerId === "string"
-                ? [participant.metadata.playerId]
-                : []
-            ) || []
-          );
-          const t = Date.now();
-          for (const id of latestConnectedIds2) {
-            presenceGraceRef.current.set(id, t);
-          }
-          presenceGraceRef.current.set(localPlayerId, t);
-          applyFilter(t, latestConnectedIds2);
-          scheduleReeval();
-        }, nextExpiry + 50);
-      }
+    const tick = () => {
+      const now = Date.now();
+      // The host stays alive independently; non-host liveness is refreshed
+      // only by playerJoin and playerHeartbeat events.
+      lastSeenRef.current.set(localPlayerId, now);
+      applyFilter(now);
     };
 
-    scheduleReeval();
+    tick();
+    pruneIntervalRef.current = setInterval(tick, PRUNE_INTERVAL_MS);
 
     return () => {
-      if (presenceReevalTimeoutRef.current) {
-        clearTimeout(presenceReevalTimeoutRef.current);
-        presenceReevalTimeoutRef.current = null;
+      if (pruneIntervalRef.current) {
+        clearInterval(pruneIntervalRef.current);
+        pruneIntervalRef.current = null;
       }
     };
-  }, [game.phase, isHost, portal.detailedPresence, localPlayerId]);
+  }, [game.phase, isHost, localPlayerId]);
 
   useEffect(() => {
     return () => {
@@ -556,7 +646,7 @@ function RoomInner({
     if (game.phase === "choosing") {
       phaseTimeRef.current = CHOOSE_WORD_TIME_SECONDS;
     } else if (game.phase === "drawing") {
-      phaseTimeRef.current = DRAW_TIME_SECONDS;
+      phaseTimeRef.current = gameRef.current.roomConfig.drawTimeSeconds;
     } else if (game.phase === "roundResult") {
       phaseTimeRef.current = ROUND_RESULT_SECONDS;
     } else {
@@ -575,7 +665,7 @@ function RoomInner({
 
         if (gameRef.current.phase === "choosing") {
           if (isHost) {
-            const word = gameRef.current.wordsForRound[0] || pickThreeWords()[0];
+            const word = gameRef.current.wordsForRound[0] || pickThreeWords(gameRef.current.roomConfig.logoCollections, usedWordsRef.current)[0];
             portal.send({ type: "wordChosen", payload: { word } });
           }
         } else if (gameRef.current.phase === "drawing") {
@@ -606,7 +696,7 @@ function RoomInner({
             if (isHost) {
               portal.send({
                 type: "chooseWord",
-                payload: { words: pickThreeWords() },
+                payload: { words: pickThreeWords(gameRef.current.roomConfig.logoCollections, usedWordsRef.current) },
               });
             }
           }
@@ -638,7 +728,7 @@ function RoomInner({
 
     const timers = getBotDrawing(roundWord).map((stroke, index) =>
       setTimeout(() => {
-        portal.send({ type: "stroke", payload: stroke });
+        portal.send({ type: "stroke", payload: { playerId: currentDrawerId, stroke } });
       }, 700 + index * 750)
     );
 
@@ -675,7 +765,7 @@ function RoomInner({
             strokes: gameRef.current.roundState?.strokes || [],
             candidates: gameRef.current.wordsForRound.length
               ? gameRef.current.wordsForRound
-              : pickThreeWords(),
+              : pickThreeWords(gameRef.current.roomConfig.logoCollections, usedWordsRef.current),
             difficulty: gameRef.current.roomConfig.difficulty || "medium",
           }),
         });
@@ -738,7 +828,15 @@ function RoomInner({
   };
 
   const handleStroke = (stroke: Stroke) => {
-    portal.send({ type: "stroke", payload: stroke });
+    portal.send({ type: "stroke", payload: { playerId: localPlayerId, stroke } });
+  };
+
+  const handleUndo = () => {
+    portal.send({ type: "undoLastStroke", payload: {} });
+  };
+
+  const handleClear = () => {
+    portal.send({ type: "clearCanvas", payload: {} });
   };
 
   const handleEndRoundEarly = () => {
@@ -757,6 +855,7 @@ function RoomInner({
     setLocalStrokes([]);
     setChosenWord(null);
     botRoundsStartedRef.current.clear();
+    usedWordsRef.current.clear();
     const fresh = createInitialState(roomId, localPlayerId, playerName, isHost, roomConfig, avatar);
     setGame(fresh);
     setTimeout(() => {
@@ -766,7 +865,7 @@ function RoomInner({
       });
       portal.send({
         type: "chooseWord",
-        payload: { words: pickThreeWords() },
+        payload: { words: pickThreeWords(fresh.roomConfig.logoCollections, usedWordsRef.current) },
       });
     }, 300);
   };
@@ -777,13 +876,14 @@ function RoomInner({
       ? game.players.length
       : game.players.length;
     if (activeCount < 2) return;
+    usedWordsRef.current.clear();
     portal.send({
       type: "gameStart",
       payload: { players: game.players, totalRounds: game.totalRounds },
     });
     portal.send({
       type: "chooseWord",
-      payload: { words: pickThreeWords() },
+      payload: { words: pickThreeWords(game.roomConfig.logoCollections, usedWordsRef.current) },
     });
   };
 
@@ -794,6 +894,9 @@ function RoomInner({
       humanCapacity: cfg.humanCapacity,
       agentCount: cfg.agentCount,
       difficulty: cfg.difficulty || "medium",
+      totalRounds: cfg.totalRounds,
+      drawTimeSeconds: cfg.drawTimeSeconds,
+      lateJoin: cfg.lateJoinPolicy,
     });
     setIsEditModalOpen(true);
   };
@@ -804,7 +907,11 @@ function RoomInner({
       mode: editDraft.mode,
       humanCapacity: editDraft.mode === "mixed" ? editDraft.humanCapacity : 0,
       agentCount: editDraft.agentCount,
-      ...(editDraft.mode === "agents-only" ? { difficulty: editDraft.difficulty } : {}),
+      ...(editDraft.agentCount > 0 ? { difficulty: editDraft.difficulty } : {}),
+      totalRounds: editDraft.totalRounds,
+      drawTimeSeconds: editDraft.drawTimeSeconds,
+      lateJoinPolicy: editDraft.lateJoin,
+      logoCollections: gameRef.current.roomConfig.logoCollections,
     };
     setGame((prev) => {
       const humans = prev.players.filter((p) => p.kind === "human");
@@ -865,8 +972,6 @@ function RoomInner({
     }
   }
 
-  const publicRoomUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${roomId}`;
-
   const isAgentOnly = game.roomConfig.mode === "agents-only";
   const humanCount = game.players.filter((p) => p.kind === "human").length;
   const roomAgentCount = game.players.filter((p) => p.kind === "room-agent").length;
@@ -885,6 +990,18 @@ function RoomInner({
         <section className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-7 text-center shadow-2xl">
           <h1 className="text-2xl font-extrabold">La sala está llena</h1>
           <p className="mt-3 text-sm leading-6 text-zinc-400">El host ya alcanzó el límite de jugadores humanos para esta sala.</p>
+          <Link href="/" className="mt-6 inline-flex rounded-xl bg-emerald-500 px-5 py-3 font-bold text-zinc-950 transition hover:bg-emerald-400">Volver al inicio</Link>
+        </section>
+      </main>
+    );
+  }
+
+  if (roomClosed) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-zinc-900 px-4 text-white">
+        <section className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-7 text-center shadow-2xl">
+          <h1 className="text-2xl font-extrabold">La sala está cerrada</h1>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">La partida ya comenzó y la sala no admite espectadores.</p>
           <Link href="/" className="mt-6 inline-flex rounded-xl bg-emerald-500 px-5 py-3 font-bold text-zinc-950 transition hover:bg-emerald-400">Volver al inicio</Link>
         </section>
       </main>
@@ -968,7 +1085,7 @@ function RoomInner({
               </div>
             </div>
 
-            {editDraft.mode === "agents-only" && (
+            {editDraft.agentCount > 0 && (
               <div className="mb-4">
                 <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Dificultad</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -985,6 +1102,58 @@ function RoomInner({
                 </div>
               </div>
             )}
+
+            <div className="mb-4">
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Rondas</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[3, 4, 5].map((rounds) => (
+                  <button
+                    key={rounds}
+                    type="button"
+                    onClick={() => setEditDraft((d) => ({ ...d, totalRounds: rounds }))}
+                    className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${editDraft.totalRounds === rounds ? "border-sky-500 bg-sky-500/10 text-sky-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"}`}
+                  >
+                    {rounds}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Tiempo de dibujo</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[45, 60, 90].map((seconds) => (
+                  <button
+                    key={seconds}
+                    type="button"
+                    onClick={() => setEditDraft((d) => ({ ...d, drawTimeSeconds: seconds }))}
+                    className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${editDraft.drawTimeSeconds === seconds ? "border-sky-500 bg-sky-500/10 text-sky-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"}`}
+                  >
+                    {seconds}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Entrada tardía</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditDraft((d) => ({ ...d, lateJoin: "spectator" }))}
+                  className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${editDraft.lateJoin === "spectator" ? "border-sky-500 bg-sky-500/10 text-sky-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"}`}
+                >
+                  Espectador
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditDraft((d) => ({ ...d, lateJoin: "closed" }))}
+                  className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${editDraft.lateJoin === "closed" ? "border-sky-500 bg-sky-500/10 text-sky-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"}`}
+                >
+                  Cerrada
+                </button>
+              </div>
+            </div>
 
             <div className="mt-6 flex gap-3">
               <button
@@ -1045,7 +1214,7 @@ function RoomInner({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3">
                 <button
                   type="button"
                   onClick={async () => {
@@ -1074,36 +1243,13 @@ function RoomInner({
                     </>
                   )}
                 </button>
-
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const ok = await copyToClipboard(publicRoomUrl);
-                    if (ok) {
-                      setCopiedLink(true);
-                      setTimeout(() => setCopiedLink(false), 2000);
-                    }
-                  }}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-emerald-500 hover:bg-zinc-700"
-                >
-                  {copiedLink ? (
-                    <>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
-                      Copiado
-                    </>
-                  ) : (
-                    <>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                      </svg>
-                      Copiar link
-                    </>
-                  )}
-                </button>
               </div>
+
+              {lateWaiting && (
+                <div className="mt-5 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/40 px-3 py-2.5 text-sm text-zinc-300">
+                  La partida ya comenzó. Puedes esperar a que termine para unirte.
+                </div>
+              )}
 
               <div className="mt-5 border-t border-zinc-800 pt-5">
                 <div className="mb-3 flex items-center justify-between">
@@ -1206,7 +1352,9 @@ function RoomInner({
 
               {!isHost && (
                 <p className="mt-4 text-center text-xs text-zinc-500">
-                  Esperando a que el host empiece la partida.
+                  {lateWaiting
+                    ? "El juego está en curso. Espera a que termine."
+                    : "Esperando a que el host empiece la partida."}
                 </p>
               )}
 
@@ -1344,6 +1492,8 @@ function RoomInner({
               strokes={localStrokes}
               isDrawing={isDrawer && game.phase === "drawing"}
               onStroke={handleStroke}
+              onUndo={handleUndo}
+              onClear={handleClear}
             />
           </div>
 

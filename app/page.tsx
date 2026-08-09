@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { LOGO_COLLECTIONS } from "@/lib/gameLogic";
 
 
 
@@ -106,7 +107,35 @@ function parsePet(value: unknown): PetdexPet | null {
   };
 }
 
+function SpriteLoading() {
+  return (
+    <span className="flex h-full w-full items-center justify-center">
+      <svg
+        aria-hidden="true"
+        className="h-2/3 w-2/3 animate-spin text-zinc-500"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      >
+        <path d="M21 12a9 9 0 1 1-6.22-8.56" />
+      </svg>
+    </span>
+  );
+}
+
 function PetdexSprite({ pet }: { pet: PetdexPet }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  // Reset per-image state when the spritesheet URL changes so the previous
+  // image's loading/error state never leaks onto the new sprite.
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [pet.spritesheetPath]);
+
   return (
     <span
       role="img"
@@ -114,11 +143,16 @@ function PetdexSprite({ pet }: { pet: PetdexPet }) {
       className="relative flex aspect-[12/13] h-full max-h-full items-center justify-center overflow-hidden rounded-sm bg-zinc-700 text-center text-xs font-bold text-white"
       style={{ backgroundColor: pet.dominantColor }}
     >
-      {pet.displayName.slice(0, 1).toUpperCase()}
-      <span
+      {!loaded && !failed && <SpriteLoading />}
+      {failed && pet.displayName.slice(0, 1).toUpperCase()}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         aria-hidden="true"
-        className="absolute inset-0 bg-left-top bg-no-repeat [background-size:800%_auto] [image-rendering:pixelated]"
-        style={{ backgroundImage: `url(${JSON.stringify(pet.spritesheetPath)})` }}
+        src={pet.spritesheetPath}
+        alt=""
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        className={`absolute left-0 top-0 h-auto w-[800%] max-w-none [image-rendering:pixelated] ${failed ? "hidden" : ""}`}
       />
     </span>
   );
@@ -188,6 +222,10 @@ export default function HomePage() {
   const [humanCapacity, setHumanCapacity] = useState(6);
   const [createAgentCount, setCreateAgentCount] = useState(1);
   const [createDifficulty, setCreateDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [createRounds, setCreateRounds] = useState(3);
+  const [createDrawTime, setCreateDrawTime] = useState(60);
+  const [createLateJoin, setCreateLateJoin] = useState<"spectator" | "closed">("spectator");
+  const [createCollections, setCreateCollections] = useState<string[]>([]);
 
   const [curatedPets, setCuratedPets] = useState<PetdexPet[]>(FALLBACK_PETS);
   const [petsLoading, setPetsLoading] = useState(true);
@@ -290,14 +328,22 @@ export default function HomePage() {
     sessionStorage.setItem(`${HOST_STORAGE_PREFIX}${id}`, "1");
     const params = buildRoomParams();
     params.set("mode", createMode);
-    if (createMode === "mixed") {
-      params.set("capacity", String(humanCapacity));
-      params.set("agents", String(createAgentCount));
-    } else {
-      params.set("agents", String(createAgentCount));
+    params.set("capacity", String(humanCapacity));
+    params.set("agents", String(createAgentCount));
+    if (createAgentCount > 0) {
       params.set("difficulty", createDifficulty);
     }
+    params.set("rounds", String(createRounds));
+    params.set("drawTime", String(createDrawTime));
+    params.set("lateJoin", createLateJoin);
+    params.set("collections", createCollections.join(","));
     router.push(`/room/${id}?${params.toString()}`);
+  };
+
+  const toggleCreateCollection = (id: string) => {
+    setCreateCollections((current) =>
+      current.includes(id) ? current.filter((c) => c !== id) : [...current, id]
+    );
   };
 
   const handleJoin = () => {
@@ -313,6 +359,9 @@ export default function HomePage() {
     params.set("mode", "mixed");
     params.set("capacity", "6");
     params.set("agents", "1");
+    params.set("rounds", "3");
+    params.set("drawTime", "60");
+    params.set("lateJoin", "spectator");
     router.push(`/room/${id}?${params.toString()}`);
   };
 
@@ -646,8 +695,8 @@ export default function HomePage() {
                     </div>
                     <span className="shrink-0 text-sm font-bold text-emerald-400">{humanCapacity} personas</span>
                   </div>
-                  <div className="mt-3 grid grid-cols-4 gap-2">
-                    {[2, 4, 6, 8].map((capacity) => (
+                  <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-7">
+                    {[2, 3, 4, 5, 6, 7, 8].map((capacity) => (
                       <button
                         type="button"
                         key={capacity}
@@ -684,6 +733,33 @@ export default function HomePage() {
                     ))}
                   </div>
                 </div>
+
+                {createAgentCount > 0 && (
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Dificultad de los agentes</h3>
+                    <div className="mt-3 space-y-2">
+                      {[
+                        { value: "easy", label: "Fácil", description: "Respuestas más simples y menor consumo por partida." },
+                        { value: "medium", label: "Media", description: "Equilibrio entre partidas ágiles y buenas decisiones." },
+                        { value: "hard", label: "Difícil", description: "Más deliberación para partidas exigentes y mayor consumo." },
+                      ].map((difficulty) => (
+                        <button
+                          type="button"
+                          key={difficulty.value}
+                          onClick={() => setCreateDifficulty(difficulty.value as "easy" | "medium" | "hard")}
+                          aria-pressed={createDifficulty === difficulty.value}
+                          className={`flex w-full items-center justify-between gap-4 rounded-xl border p-3 text-left transition ${createDifficulty === difficulty.value ? "border-emerald-400 bg-emerald-500/15" : "border-zinc-700 bg-zinc-950 hover:border-zinc-500"}`}
+                        >
+                          <span>
+                            <span className={`block text-sm font-bold ${createDifficulty === difficulty.value ? "text-emerald-300" : "text-white"}`}>{difficulty.label}</span>
+                            <span className="mt-0.5 block text-xs leading-5 text-zinc-500">{difficulty.description}</span>
+                          </span>
+                          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${createDifficulty === difficulty.value ? "bg-emerald-400" : "bg-zinc-700"}`} aria-hidden="true" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mt-5 space-y-5">
@@ -737,6 +813,106 @@ export default function HomePage() {
                 </div>
               </div>
             )}
+
+            <div className="mt-5 grid grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-bold text-white">Rondas</h3>
+                  <span className="text-sm font-bold text-emerald-400">{createRounds}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {[3, 4, 5].map((rounds) => (
+                    <button
+                      type="button"
+                      key={rounds}
+                      onClick={() => setCreateRounds(rounds)}
+                      aria-pressed={createRounds === rounds}
+                      className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${createRounds === rounds ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-zinc-500 hover:text-white"}`}
+                    >
+                      {rounds}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-bold text-white">Tiempo de dibujo</h3>
+                  <span className="text-sm font-bold text-emerald-400">{createDrawTime}s</span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {[45, 60, 90].map((seconds) => (
+                    <button
+                      type="button"
+                      key={seconds}
+                      onClick={() => setCreateDrawTime(seconds)}
+                      aria-pressed={createDrawTime === seconds}
+                      className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${createDrawTime === seconds ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-zinc-500 hover:text-white"}`}
+                    >
+                      {seconds}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <div className="flex items-baseline justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Entrada tardía</h3>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">Qué pasa si alguien entra con la partida en curso.</p>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateLateJoin("spectator")}
+                  aria-pressed={createLateJoin === "spectator"}
+                  className={`rounded-xl border p-3 text-left transition ${createLateJoin === "spectator" ? "border-emerald-400 bg-emerald-500/15" : "border-zinc-700 bg-zinc-950 hover:border-zinc-500"}`}
+                >
+                  <span className={`block text-sm font-bold ${createLateJoin === "spectator" ? "text-emerald-300" : "text-white"}`}>Espectador</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-zinc-500">Puede mirar sin sumarse al juego.</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateLateJoin("closed")}
+                  aria-pressed={createLateJoin === "closed"}
+                  className={`rounded-xl border p-3 text-left transition ${createLateJoin === "closed" ? "border-emerald-400 bg-emerald-500/15" : "border-zinc-700 bg-zinc-950 hover:border-zinc-500"}`}
+                >
+                  <span className={`block text-sm font-bold ${createLateJoin === "closed" ? "text-emerald-300" : "text-white"}`}>Cerrada</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-zinc-500">No admite entradas una vez empezada.</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <div className="flex items-baseline justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Origen de logos</h3>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">El catálogo abierto usa los 206 logos de TryElements. Una colección limita las opciones.</p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateCollections([])}
+                  aria-pressed={createCollections.length === 0}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${createCollections.length === 0 ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-zinc-500 hover:text-white"}`}
+                >
+                  Catálogo abierto
+                </button>
+                {LOGO_COLLECTIONS.map((collection) => (
+                  <button
+                    type="button"
+                    key={collection.id}
+                    onClick={() => toggleCreateCollection(collection.id)}
+                    aria-pressed={createCollections.includes(collection.id)}
+                    className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${createCollections.includes(collection.id) ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-zinc-500 hover:text-white"}`}
+                  >
+                    {collection.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <p className="mt-5 text-xs leading-5 text-zinc-500">La sala será pública.</p>
             <button type="button" onClick={handleCreate} className="mt-4 w-full rounded-xl bg-emerald-500 px-4 py-3 font-bold text-zinc-950 transition hover:bg-emerald-400 active:scale-[0.99]">

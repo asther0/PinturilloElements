@@ -39,11 +39,17 @@ export type GameMode = "mixed" | "agents-only";
 
 export type Difficulty = "easy" | "medium" | "hard";
 
+export type LateJoinPolicy = "spectator" | "closed";
+
 export type RoomConfig = {
   mode: GameMode;
   humanCapacity: number;
   agentCount: number;
   difficulty?: Difficulty;
+  totalRounds: number;
+  drawTimeSeconds: number;
+  lateJoinPolicy: LateJoinPolicy;
+  logoCollections: string[];
 };
 
 export type ChatMessage = {
@@ -91,7 +97,9 @@ export type GameState = {
 };
 
 type PortalEventData =
-  | { type: "stroke"; payload: Stroke }
+  | { type: "stroke"; payload: { playerId: string; stroke: Stroke } }
+  | { type: "undoLastStroke"; payload: Record<string, never> }
+  | { type: "clearCanvas"; payload: Record<string, never> }
   | { type: "guess"; payload: { playerId: string; content: string } }
   | { type: "roundStart"; payload: { drawerId: string; word: string; roundNumber: number } }
   | { type: "roundEnd"; payload: { word: string; scores: Record<string, number> } }
@@ -101,8 +109,10 @@ type PortalEventData =
   | { type: "wordChosen"; payload: { word: string } }
   | { type: "playerJoin"; payload: { player: Player } }
   | { type: "playerLeave"; payload: { playerId: string } }
-  | { type: "joinRejected"; payload: { playerId: string; reason: "full" } }
-  | { type: "lobbySync"; payload: { players: Player[]; hostId: string; roomConfig: RoomConfig } };
+  | { type: "playerHeartbeat"; payload: { playerId: string } }
+  | { type: "joinRejected"; payload: { playerId: string; reason: "full" | "closed" } }
+  | { type: "lobbySync"; payload: { players: Player[]; hostId: string; roomConfig: RoomConfig } }
+  | { type: "lateJoinWaiting"; payload: { hostId: string } };
 
 export type PortalEvent = PortalEventData & {
   eventId?: string;
