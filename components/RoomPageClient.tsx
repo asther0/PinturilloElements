@@ -10,6 +10,8 @@ import {
   checkGuess,
   calculateGuessScore,
   advanceDrawer,
+  applyNextTurn,
+  returnToLobby,
   shouldEndGame,
   getWinner,
   createChatMessage,
@@ -21,6 +23,7 @@ import {
   makeHumanPlayer,
   DRAWER_GUESS_BONUS,
 } from "@/lib/gameLogic";
+import { tryElementsLogoUrl } from "@/lib/tryElementsLogo";
 import {
   buildRoomSnapshot,
   acceptLobbyJoin,
@@ -129,17 +132,16 @@ function sameRoomConfig(left: RoomConfig, right: RoomConfig): boolean {
   );
 }
 
-const TRY_ELEMENTS_LOGOS: Record<string, string> = {
-  vercel: "https://tryelements.dev/r/svg/vercel-logo.svg",
-  supabase: "https://tryelements.dev/r/svg/supabase-logo.svg",
-  obsidian: "https://tryelements.dev/r/svg/obsidian-logo.svg",
-};
-
 function CompanyLogo({ company }: { company: string }) {
-  const [failed, setFailed] = useState(false);
-  const logoUrl = TRY_ELEMENTS_LOGOS[company.toLowerCase()];
+  const [failedCompany, setFailedCompany] = useState<string | null>(null);
+  const logoUrl = tryElementsLogoUrl(company);
+  const failed = failedCompany === company;
 
-  if (!logoUrl || failed) {
+  useEffect(() => {
+    setFailedCompany(null);
+  }, [company]);
+
+  if (failed) {
     return (
       <span
         role="img"
@@ -163,7 +165,7 @@ function CompanyLogo({ company }: { company: string }) {
         src={logoUrl}
         alt={`Logo de ${company}`}
         className="h-full w-full object-contain"
-        onError={() => setFailed(true)}
+        onError={() => setFailedCompany(company)}
       />
     </span>
   );
@@ -271,10 +273,6 @@ function RoomInner({
 
   const isDrawer = isLocalPlayerDrawer(game, localPlayerId);
   const currentDrawer = getCurrentDrawer(game);
-  const currentDrawerId = currentDrawer?.id;
-  const currentDrawerKind = currentDrawer?.kind;
-  const roundStartedAt = game.roundState?.startedAt;
-  const roundWord = game.roundState?.word;
 
   const handleEvent = useCallback((event: PortalEvent) => {
     const g = gameRef.current;
@@ -290,6 +288,15 @@ function RoomInner({
       }
       case "chooseWord": {
         setGame((prev) => ({ ...prev, phase: "choosing", wordsForRound: event.payload.words }));
+        break;
+      }
+      case "nextTurn": {
+        const nextState = applyNextTurn(g, event.payload);
+        if (nextState === g) break;
+        gameRef.current = nextState;
+        setGame(nextState);
+        setChosenWord(null);
+        setLocalStrokes([]);
         break;
       }
       case "wordChosen": {
@@ -414,6 +421,21 @@ function RoomInner({
           scores: event.payload.finalScores,
           winnerId: event.payload.winnerId,
         }));
+        break;
+      }
+      case "returnToLobby": {
+        const nextState = returnToLobby(g, event.payload.hostId);
+        if (nextState === g) break;
+        gameRef.current = nextState;
+        setGame(nextState);
+        setMessages([]);
+        setLocalStrokes([]);
+        setChosenWord(null);
+        setLateWaiting(false);
+        usedWordsRef.current.clear();
+        drawerBonusAwardedRef.current.clear();
+        playedCorrectGuessSoundIdsRef.current.clear();
+        playedRoundCompletionSoundIdsRef.current.clear();
         break;
       }
       case "joinRequest": {
@@ -784,26 +806,28 @@ function RoomInner({
             });
           }
         } else if (gameRef.current.phase === "roundResult") {
+          if (!isHost) return;
           if (shouldEndGame(gameRef.current)) {
-            if (isHost) {
-              const winner = getWinner(gameRef.current);
-              portal.send({
-                type: "gameOver",
-                payload: {
-                  winnerId: winner?.id || "",
-                  finalScores: gameRef.current.scores,
-                },
-              });
-            }
+            const winner = getWinner(gameRef.current);
+            portal.send({
+              type: "gameOver",
+              payload: {
+                winnerId: winner?.id || "",
+                finalScores: gameRef.current.scores,
+              },
+            });
           } else {
             const next = advanceDrawer(gameRef.current);
-            setGame(next);
-            if (isHost) {
-              portal.send({
-                type: "chooseWord",
-                payload: { words: pickThreeWords(gameRef.current.roomConfig.logoCollections, usedWordsRef.current) },
-              });
-            }
+            const nextDrawer = getCurrentDrawer(next);
+            if (!nextDrawer) return;
+            portal.send({
+              type: "nextTurn",
+              payload: {
+                drawerId: nextDrawer.id,
+                roundNumber: next.currentRound,
+                words: pickThreeWords(gameRef.current.roomConfig.logoCollections, usedWordsRef.current),
+              },
+            });
           }
         }
       }
@@ -851,23 +875,12 @@ function RoomInner({
     });
   };
 
-  const handleNewGame = () => {
-    setMessages([]);
-    setLocalStrokes([]);
-    setChosenWord(null);
-    usedWordsRef.current.clear();
-    const fresh = createInitialState(roomId, localPlayerId, playerName, isHost, roomConfig, avatar);
-    setGame(fresh);
-    setTimeout(() => {
-      portal.send({
-        type: "gameStart",
-        payload: { players: fresh.players, totalRounds: fresh.totalRounds },
-      });
-      portal.send({
-        type: "chooseWord",
-        payload: { words: pickThreeWords(fresh.roomConfig.logoCollections, usedWordsRef.current) },
-      });
-    }, 300);
+  const handleReturnToLobby = () => {
+    if (!isHost) return;
+    portal.send({
+      type: "returnToLobby",
+      payload: { hostId: localPlayerId },
+    });
   };
 
   const handleStartGame = () => {
@@ -1832,14 +1845,23 @@ function RoomInner({
                     })}
                   </div>
                   <div className="mt-7 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={handleNewGame}
-                      className={`${primaryBtn}`}
-                      style={{ fontFamily: FONT_DISPLAY, borderRadius: 0 }}
-                    >
-                      Nueva partida
-                    </button>
+                    {isHost ? (
+                      <button
+                        type="button"
+                        onClick={handleReturnToLobby}
+                        className={`${primaryBtn}`}
+                        style={{ fontFamily: FONT_DISPLAY, borderRadius: 0 }}
+                      >
+                        Volver a la sala de espera
+                      </button>
+                    ) : (
+                      <p
+                        className="text-center text-[12px] text-[#6B6B62]"
+                        style={{ fontFamily: FONT_BODY }}
+                      >
+                        Esperando a que el host vuelva a la sala de espera.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

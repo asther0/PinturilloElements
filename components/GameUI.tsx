@@ -1,7 +1,7 @@
 "use client";
 
 import { GameState } from "@/lib/types";
-import { formatTime } from "@/lib/gameLogic";
+import { formatTime, formatWordHint } from "@/lib/gameLogic";
 
 export default function GameUI({
   game,
@@ -33,12 +33,25 @@ export default function GameUI({
           <span className="text-[#7EB6FF]">{currentDrawerName}</span>
         </div>
         {game.phase === "drawing" && (
-          <div
-            className={`border-2 border-[#111111] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] shadow-[3px_3px_0_#111111] ${phaseTimeLeft <= 10 ? "bg-[#F5D033] text-[#111111]" : "bg-[#E7E2D4] text-[#111111]"}`}
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {formatTime(phaseTimeLeft)}
-          </div>
+          <>
+            <div
+              className={`border-2 border-[#111111] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] shadow-[3px_3px_0_#111111] ${phaseTimeLeft <= 10 ? "bg-[#F5D033] text-[#111111]" : "bg-[#E7E2D4] text-[#111111]"}`}
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {formatTime(phaseTimeLeft)}
+            </div>
+            {game.roundState?.word && (
+              <div
+                className="border-2 border-[#111111] bg-[#E7E2D4] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#111111] shadow-[3px_3px_0_#111111]"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                {isLocalDrawer ? "Palabra: " : "Pista: "}
+                <span className="text-[#7EB6FF]">
+                  {isLocalDrawer ? game.roundState.word : formatWordHint(game.roundState.word)}
+                </span>
+              </div>
+            )}
+          </>
         )}
         {game.phase === "choosing" && (
           <div

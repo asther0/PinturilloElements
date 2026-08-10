@@ -90,7 +90,9 @@ type PortalEventData =
   | { type: "roundEnd"; payload: { word: string; scores: Record<string, number> } }
   | { type: "gameStart"; payload: { players: Player[]; totalRounds: number } }
   | { type: "gameOver"; payload: { winnerId: string; finalScores: Record<string, number> } }
+  | { type: "returnToLobby"; payload: { hostId: string } }
   | { type: "chooseWord"; payload: { words: string[] } }
+  | { type: "nextTurn"; payload: { drawerId: string; roundNumber: number; words: string[] } }
   | { type: "wordChosen"; payload: { word: string } }
   | { type: "joinRequest"; payload: { requestId: string; targetPlayerId: string; player: Player } }
   | { type: "joinAccepted"; payload: RoomSnapshotPayload }

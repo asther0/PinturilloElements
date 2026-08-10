@@ -105,12 +105,67 @@ export function checkGuess(guess: string, targetWord: string): boolean {
 }
 
 export function advanceDrawer(state: GameState): GameState {
+  if (state.players.length === 0) return state;
   const nextIndex = (state.currentDrawerIndex + 1) % state.players.length;
   const nextRound = nextIndex === 0 ? state.currentRound + 1 : state.currentRound;
   return {
     ...state,
     currentDrawerIndex: nextIndex,
     currentRound: nextRound,
+  };
+}
+
+export type NextTurnPayload = {
+  drawerId: string;
+  roundNumber: number;
+  words: string[];
+};
+
+/**
+ * Apply the host's ordered next-turn instruction. The payload is only valid
+ * for the immediate successor of the completed turn, so duplicate, stale,
+ * or reordered events leave local state untouched.
+ */
+export function applyNextTurn(state: GameState, payload: NextTurnPayload): GameState {
+  if (state.phase !== "roundResult" || state.players.length === 0 || payload.words.length === 0) {
+    return state;
+  }
+
+  const expected = advanceDrawer(state);
+  const expectedDrawer = expected.players[expected.currentDrawerIndex];
+  if (
+    !expectedDrawer ||
+    payload.drawerId !== expectedDrawer.id ||
+    payload.roundNumber !== expected.currentRound
+  ) {
+    return state;
+  }
+
+  return {
+    ...state,
+    phase: "choosing",
+    currentRound: expected.currentRound,
+    currentDrawerIndex: expected.currentDrawerIndex,
+    wordsForRound: [...payload.words],
+  };
+}
+
+/**
+ * Return an ended game to its existing lobby. The host id in the event must
+ * match the established room host so a guest cannot initiate the transition.
+ */
+export function returnToLobby(state: GameState, hostId: string): GameState {
+  if (state.phase !== "gameOver" || state.hostId !== hostId) return state;
+
+  return {
+    ...state,
+    phase: "lobby",
+    currentRound: 1,
+    currentDrawerIndex: 0,
+    wordsForRound: [],
+    scores: Object.fromEntries(state.players.map((player) => [player.id, 0])),
+    winnerId: undefined,
+    roundState: undefined,
   };
 }
 
@@ -157,16 +212,34 @@ export function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/**
+ * Reveal vowels while masking consonants during a drawing turn. Separators
+ * such as hyphens, spaces, and punctuation remain visible.
+ */
+export function formatWordHint(word: string): string {
+  return word
+    .toLowerCase()
+    .split("")
+    .map((character) => {
+      if (!/[a-z]/.test(character)) return character;
+      return "aeiou".includes(character) ? character : "_";
+    })
+    .join("");
+}
+
+let systemMessageSequence = 0;
+
 export function createSystemMessage(content: string): ChatMessage {
+  const timestamp = Date.now();
   return {
-    id: `system-${Date.now()}`,
+    id: `system-${timestamp}-${++systemMessageSequence}`,
     playerId: "system",
     playerName: "Sistema",
     playerKind: "human",
     content,
     isGuess: false,
     isSystem: true,
-    timestamp: Date.now(),
+    timestamp,
   };
 }
 
