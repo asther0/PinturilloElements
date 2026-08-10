@@ -14,6 +14,8 @@ to guess the brand. A partida is a fixed sequence of rondas scored
 against a timed clock. Human-only rooms: 2 to 8 players, host-driven
 setup, no bots or AI.
 
+[![Screenshot-2026-08-09-at-8-54-49-PM.png](https://i.postimg.cc/TYmMf3sR/Screenshot-2026-08-09-at-8-54-49-PM.png)](https://postimg.cc/dLqS9wvX)
+
 ## How to play
 
 A room runs one partida made of rondas. The default is three rondas.
@@ -62,13 +64,17 @@ no AI guessing, no BYOK.
 - [TryElements](https://github.com/crafter-station/elements) -- the
   catalog the word picker draws from. The MVP serves company logos
   directly from `https://tryelements.dev/r/svg/...` for the picker
-  preview. The full catalog API is not wired; the word list itself
-  is a hard-coded 3-item array in `lib/gameLogic.ts`.
+  preview. The word picker uses a generated catalog snapshot in
+  `lib/logoCollections.ts`.
+
+  [![image.png](https://i.postimg.cc/sxkcTyPL/image.png)](https://postimg.cc/zHkKfscw)
 - [Petdex](https://github.com/crafter-station/petdex) -- the avatar
   system. The join screen fetches pets from `/petdex-api/pets/search`
   and lets each player pick one. The room shows those avatars in the
   lobby roster and next to chat lines. The MVP ships a fallback list
   of six pets in case Petdex is unreachable.
+
+  [![image.png](https://i.postimg.cc/SRJTZDB6/image.png)](https://postimg.cc/5QWSyqNy)
 
 ## Local fallback
 
@@ -123,8 +129,8 @@ Copy `.env.example` to `.env.local` and fill in:
   There is no server-side game state, no auth, no persistence beyond
   the current room session, and no historical leaderboards. Portal
   (or its local fallback) is the only state carrier.
-- The word pool is hard-coded to Vercel, Supabase, and Obsidian. The
-  TryElements catalog API is not integrated.
+- The TryElements catalog is imported as a generated snapshot rather than
+  requested live at runtime.
 - Optimised for desktop and landscape tablet. Small phones are not a
   supported target.
 - The MVP validation set uses company logos. The vault notes this is
@@ -164,3 +170,8 @@ Copy `.env.example` to `.env.local` and fill in:
 ```
 
 The Next.js app under `app/` and `components/` is the MVP.
+
+## Next improvements
+
+- Optional AI-agent players
+- Infrastructure optimization
