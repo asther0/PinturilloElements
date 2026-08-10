@@ -54,6 +54,7 @@ export type Stroke = {
   color: string;
   width: number;
   tool: "pen" | "eraser";
+  logicalStrokeId?: string;
 };
 
 export type RoundState = {
@@ -83,7 +84,7 @@ export type GameState = {
 
 type PortalEventData =
   | { type: "stroke"; payload: { playerId: string; stroke: Stroke } }
-  | { type: "undoLastStroke"; payload: Record<string, never> }
+  | { type: "undoLastStroke"; payload: { logicalStrokeId?: string } }
   | { type: "clearCanvas"; payload: Record<string, never> }
   | { type: "guess"; payload: { playerId: string; content: string } }
   | { type: "roundStart"; payload: { drawerId: string; word: string; roundNumber: number } }

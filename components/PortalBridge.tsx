@@ -15,14 +15,18 @@ import {
 import { PortalEvent, PortalPresenceMetadata } from "@/lib/types";
 import { roomChannelId } from "@/lib/roomId";
 import { createPortalDispatch, PortalDispatch } from "@/lib/portalDispatch";
+import {
+  isPortalEventWithinBudget,
+  isPortalEventWithinBudgetAfterDispatch,
+  portalEventByteLength,
+  PORTAL_MESSAGE_BYTE_BUDGET,
+} from "@/lib/strokeGeometry";
 import { PortalProvider, useChannel } from "@portalsdk/react";
 import type { ChannelStatus, DetailedPresence, PortalError } from "@portalsdk/core";
 import { Portal, Message } from "@portalsdk/core";
 
 const API_KEY = process.env.NEXT_PUBLIC_PORTAL_API_KEY;
 const HAS_KEY = Boolean(API_KEY && API_KEY !== "your_portal_api_key_here");
-const MAX_SEND_BYTES = 2048;
-
 // Create Portal client synchronously if key exists (no network at construction)
 const portalClient = HAS_KEY ? new Portal({ apiKey: API_KEY! }) : null;
 
@@ -165,15 +169,14 @@ function ChannelListener({
   // Expose send function to parent. useLayoutEffect guarantees this runs
   // after the component commits, avoiding setState-during-render warnings.
   useLayoutEffect(() => {
-    const encoder = new TextEncoder();
     onSendReady((event: PortalEvent, recipientId?: string) => {
       // NOTE: sender authorization is unresolved in a client-only topology;
       // any connected client can forge senderId. Host-side validation required.
       const content = JSON.stringify(event);
-      const byteLength = encoder.encode(content).length;
-      if (byteLength > MAX_SEND_BYTES) {
+      const byteLength = portalEventByteLength(event);
+      if (!isPortalEventWithinBudget(event)) {
         console.warn(
-          `[PortalBridge] Dropping oversized ${event.type} message: ${byteLength} bytes > ${MAX_SEND_BYTES}`
+          `[PortalBridge] Dropping oversized ${event.type} message: ${byteLength} bytes > ${PORTAL_MESSAGE_BYTE_BUDGET}`
         );
         return;
       }
@@ -243,6 +246,13 @@ export function PortalBridge({
   const dispatch = dispatchRef.current;
   const deliver = useCallback(
     (event: PortalEvent, fallbackId?: string) => {
+      const isWithinBudget = event.eventId
+        ? isPortalEventWithinBudget(event)
+        : isPortalEventWithinBudgetAfterDispatch(event);
+      if (!isWithinBudget) {
+        console.warn(`[PortalBridge] Ignoring oversized received ${event.type} message`);
+        return;
+      }
       dispatch.receive(event, fallbackId);
     },
     [dispatch]
@@ -265,6 +275,10 @@ export function PortalBridge({
 
   const send = useCallback(
     (event: PortalEvent, recipientId?: string) => {
+      if (!isPortalEventWithinBudgetAfterDispatch(event)) {
+        console.warn(`[PortalBridge] Dropping oversized ${event.type} message before local dispatch`);
+        return;
+      }
       dispatch.dispatch(event, recipientId);
     },
     [dispatch]

@@ -4,7 +4,6 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { Stroke } from "@/lib/types";
 
 const MIN_POINT_DISTANCE = 2.5;
-const MAX_POINTS_PER_STROKE = 48;
 
 const STROKE_WIDTHS = [
   { value: 2, label: "Fino" },
@@ -22,21 +21,6 @@ const COLOR_SWATCHES = [
   "#3498db",
   "#9b59b6",
 ] as const;
-
-function compactStrokePoints(
-  points: { x: number; y: number }[],
-  maxPoints: number
-): { x: number; y: number }[] {
-  if (points.length <= maxPoints) return points;
-  const result: { x: number; y: number }[] = [points[0]];
-  const step = (points.length - 1) / (maxPoints - 1);
-  for (let i = 1; i < maxPoints - 1; i++) {
-    const idx = Math.round(i * step);
-    result.push(points[idx]);
-  }
-  result.push(points[points.length - 1]);
-  return result;
-}
 
 function ToolbarButton({
   active,
@@ -210,16 +194,9 @@ export default function GameCanvas({
       const previous = points[points.length - 1];
       const distance = Math.hypot(pos.x - previous.x, pos.y - previous.y);
 
-      // Pointer events can produce thousands of near-identical points. Keep
-      // each Portal stroke safely under the 2 KB persistent-content limit.
+      // Ignore densely sampled positions while retaining every accepted point.
       if (distance < MIN_POINT_DISTANCE) return;
       points.push(pos);
-      if (points.length > MAX_POINTS_PER_STROKE) {
-        currentStrokeRef.current.points = compactStrokePoints(
-          currentStrokeRef.current.points,
-          MAX_POINTS_PER_STROKE
-        );
-      }
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext("2d");

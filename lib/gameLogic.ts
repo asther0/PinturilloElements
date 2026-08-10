@@ -13,6 +13,11 @@ export const DRAW_TIME_SECONDS = 60;
 export const CHOOSE_WORD_TIME_SECONDS = 10;
 export const ROUND_RESULT_SECONDS = 5;
 
+/** A choice turn is actionable only after the host has supplied every card. */
+export function shouldStartChoosingCountdown(wordsForRound: readonly string[]): boolean {
+  return wordsForRound.length === 3;
+}
+
 export function makeHumanPlayer(id: string, name: string, avatar?: PetdexAvatar): Player {
   return { id, name, score: 0, kind: "human", avatar };
 }
@@ -178,6 +183,67 @@ export function shouldEndGame(state: GameState): boolean {
 }
 
 export const DRAWER_GUESS_BONUS = 25;
+
+export type CorrectGuessProgress = {
+  playerIds: readonly string[];
+  drawerId: string;
+  guesserId: string;
+  scores: Record<string, number>;
+  correctGuesserIds: ReadonlySet<string>;
+  guessScore: number;
+};
+
+/**
+ * Accept exactly one correct answer per eligible guesser and report whether
+ * it should be scored. The caller owns event authority; completion stays in a
+ * separate pure helper so only the host needs to evaluate it.
+ */
+export function recordFirstCorrectGuess({
+  playerIds,
+  drawerId,
+  guesserId,
+  scores,
+  correctGuesserIds,
+  guessScore,
+}: CorrectGuessProgress): {
+  accepted: boolean;
+  scores: Record<string, number>;
+  correctGuesserIds: Set<string>;
+} {
+  const eligibleGuessers = playerIds.filter((playerId) => playerId !== drawerId);
+  const accepted =
+    eligibleGuessers.includes(guesserId) && !correctGuesserIds.has(guesserId);
+  if (!accepted) {
+    return {
+      accepted: false,
+      scores,
+      correctGuesserIds: new Set(correctGuesserIds),
+    };
+  }
+
+  const nextCorrectGuessers = new Set(correctGuesserIds).add(guesserId);
+  const nextScores = {
+    ...scores,
+    [guesserId]: (scores[guesserId] || 0) + guessScore,
+    [drawerId]: (scores[drawerId] || 0) + DRAWER_GUESS_BONUS,
+  };
+
+  return {
+    accepted: true,
+    scores: nextScores,
+    correctGuesserIds: nextCorrectGuessers,
+  };
+}
+
+export function haveAllEligiblePlayersGuessed(
+  playerIds: readonly string[],
+  drawerId: string,
+  correctGuesserIds: ReadonlySet<string>
+): boolean {
+  return playerIds
+    .filter((playerId) => playerId !== drawerId)
+    .every((playerId) => correctGuesserIds.has(playerId));
+}
 
 export function getWinner(state: GameState): Player | undefined {
   let best: Player | undefined;

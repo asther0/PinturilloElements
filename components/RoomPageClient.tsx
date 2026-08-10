@@ -22,8 +22,12 @@ import {
   getCurrentDrawer,
   makeHumanPlayer,
   DRAWER_GUESS_BONUS,
+  haveAllEligiblePlayersGuessed,
+  recordFirstCorrectGuess,
+  shouldStartChoosingCountdown,
 } from "@/lib/gameLogic";
-import { tryElementsLogoUrl } from "@/lib/tryElementsLogo";
+import { tryElementsLogoProxyUrl } from "@/lib/tryElementsLogo";
+import { chunkStrokeForPortal, removeLogicalStroke } from "@/lib/strokeGeometry";
 import {
   buildRoomSnapshot,
   acceptLobbyJoin,
@@ -134,8 +138,8 @@ function sameRoomConfig(left: RoomConfig, right: RoomConfig): boolean {
 
 function CompanyLogo({ company }: { company: string }) {
   const [failedCompany, setFailedCompany] = useState<string | null>(null);
-  const logoUrl = tryElementsLogoUrl(company);
-  const failed = failedCompany === company;
+  const logoUrl = tryElementsLogoProxyUrl(company);
+  const failed = failedCompany === company || !logoUrl;
 
   useEffect(() => {
     setFailedCompany(null);
@@ -146,7 +150,7 @@ function CompanyLogo({ company }: { company: string }) {
       <span
         role="img"
         aria-label={`Logo de ${company} no disponible`}
-        className="flex h-14 w-14 items-center justify-center border-2 border-[#111111] bg-[#E7E2D4] text-[14px] font-bold text-[#111111]"
+        className="flex h-24 w-full items-center justify-center border-2 border-[#111111] bg-[#E7E2D4] text-[24px] font-bold text-[#111111]"
         style={{ borderRadius: "6px", fontFamily: FONT_DISPLAY }}
       >
         {company.slice(0, 2).toUpperCase()}
@@ -156,7 +160,7 @@ function CompanyLogo({ company }: { company: string }) {
 
   return (
     <span
-      className="flex h-14 w-14 items-center justify-center border-2 border-[#111111] bg-[#FFFDF7] p-2"
+      className="flex h-24 w-full items-center justify-center border-2 border-[#111111] bg-[#FFFDF7] p-3"
       style={{ borderRadius: "6px", boxShadow: "3px 3px 0 #111111" }}
     >
       {/* TryElements serves these official marks as standalone SVG assets. */}
@@ -250,9 +254,9 @@ function RoomInner({
   const lastSeenRef = useRef(new Map<string, number>());
   const pruneIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const usedWordsRef = useRef(new Set<string>());
-  // Player ids that already earned the drawer bonus for the current round, so
-  // duplicate correct guesses never grant it twice to the same guesser.
-  const drawerBonusAwardedRef = useRef(new Set<string>());
+  // Correct answers are tracked per round, so retries do not score twice or
+  // emit duplicate early-round completions.
+  const correctGuesserIdsRef = useRef(new Set<string>());
   const playedCorrectGuessSoundIdsRef = useRef(new Set<string>());
   const playedRoundCompletionSoundIdsRef = useRef(new Set<string>());
   const lastSnapshotRequestIdRef = useRef<string | null>(null);
@@ -278,6 +282,7 @@ function RoomInner({
     const g = gameRef.current;
     switch (event.type) {
       case "gameStart": {
+        correctGuesserIdsRef.current.clear();
         setGame((prev) => ({
           ...prev,
           phase: "choosing",
@@ -297,11 +302,12 @@ function RoomInner({
         setGame(nextState);
         setChosenWord(null);
         setLocalStrokes([]);
+        correctGuesserIdsRef.current.clear();
         break;
       }
       case "wordChosen": {
         const word = event.payload.word;
-        drawerBonusAwardedRef.current.clear();
+        correctGuesserIdsRef.current.clear();
         setChosenWord(word);
         setLocalStrokes([]);
         if (g.hostId === localPlayerId) usedWordsRef.current.add(word);
@@ -335,14 +341,14 @@ function RoomInner({
         break;
       }
       case "undoLastStroke": {
-        setLocalStrokes((prev) => prev.slice(0, -1));
+        setLocalStrokes((prev) => removeLogicalStroke(prev, event.payload.logicalStrokeId));
         setGame((prev) => {
           if (!prev.roundState) return prev;
           return {
             ...prev,
             roundState: {
               ...prev.roundState,
-              strokes: prev.roundState.strokes.slice(0, -1),
+              strokes: removeLogicalStroke(prev.roundState.strokes, event.payload.logicalStrokeId),
             },
           };
         });
@@ -367,33 +373,44 @@ function RoomInner({
         if (!guesser) break;
         if (guesser.id === g.roundState?.drawerId) break;
         const word = g.roundState?.word;
+        if (g.phase !== "drawing") break;
         const correct = word ? checkGuess(event.payload.content, word) : false;
         const msg = createChatMessage(guesser, event.payload.content, true, correct);
         setMessages((prev) => [...prev, msg]);
         if (correct && word) {
           const score = calculateGuessScore(g.roundState?.timeRemaining || 0, g.roomConfig.drawTimeSeconds);
           const drawerId = g.roundState?.drawerId;
-          const firstCorrect = !drawerBonusAwardedRef.current.has(guesser.id);
+          if (!drawerId) break;
+          const progress = recordFirstCorrectGuess({
+            playerIds: g.players.map((player) => player.id),
+            drawerId,
+            guesserId: guesser.id,
+            scores: g.scores,
+            correctGuesserIds: correctGuesserIdsRef.current,
+            guessScore: score,
+          });
+          if (!progress.accepted) break;
+          correctGuesserIdsRef.current = progress.correctGuesserIds;
           const guessSoundId = event.eventId || `${g.roundState?.startedAt || "round"}:${guesser.id}:${event.payload.content}`;
           if (!playedCorrectGuessSoundIdsRef.current.has(guessSoundId)) {
             playedCorrectGuessSoundIdsRef.current.add(guessSoundId);
             playPetdexSound(guesser.avatar);
           }
-          if (firstCorrect) drawerBonusAwardedRef.current.add(guesser.id);
-          setGame((prev) => {
-            const newScores = { ...prev.scores, [guesser.id]: (prev.scores[guesser.id] || 0) + score };
-            if (firstCorrect && drawerId) {
-              newScores[drawerId] = (newScores[drawerId] || 0) + DRAWER_GUESS_BONUS;
-            }
-            return { ...prev, scores: newScores };
-          });
+          setGame((prev) => ({ ...prev, scores: progress.scores }));
           setMessages((prev) => [
             ...prev,
             createSystemMessage(`${guesser.name} acertó (+${score} pts)`),
-            ...(firstCorrect && drawerId
-              ? [createSystemMessage(`El dibujante suma +${DRAWER_GUESS_BONUS} pts por la respuesta de ${guesser.name}`)]
-              : []),
+            createSystemMessage(`El dibujante suma +${DRAWER_GUESS_BONUS} pts por la respuesta de ${guesser.name}`),
           ]);
+          if (
+            g.hostId === localPlayerId &&
+            haveAllEligiblePlayersGuessed(g.players.map((player) => player.id), drawerId, progress.correctGuesserIds)
+          ) {
+            portalRef.current.send({
+              type: "roundEnd",
+              payload: { word, scores: progress.scores },
+            });
+          }
         }
         break;
       }
@@ -433,7 +450,7 @@ function RoomInner({
         setChosenWord(null);
         setLateWaiting(false);
         usedWordsRef.current.clear();
-        drawerBonusAwardedRef.current.clear();
+        correctGuesserIdsRef.current.clear();
         playedCorrectGuessSoundIdsRef.current.clear();
         playedRoundCompletionSoundIdsRef.current.clear();
         break;
@@ -771,6 +788,11 @@ function RoomInner({
     if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
 
     if (game.phase === "choosing") {
+      if (!shouldStartChoosingCountdown(game.wordsForRound)) {
+        phaseTimeRef.current = 0;
+        setPhaseTimeLeft(0);
+        return;
+      }
       phaseTimeRef.current = CHOOSE_WORD_TIME_SECONDS;
     } else if (game.phase === "drawing") {
       phaseTimeRef.current = gameRef.current.roomConfig.drawTimeSeconds;
@@ -836,7 +858,7 @@ function RoomInner({
     return () => {
       if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
     };
-  }, [game.phase, isHost, portal]);
+  }, [game.phase, game.wordsForRound, isHost, portal]);
 
 
 
@@ -853,11 +875,19 @@ function RoomInner({
   };
 
   const handleStroke = (stroke: Stroke) => {
-    portal.send({ type: "stroke", payload: { playerId: localPlayerId, stroke } });
+    const logicalStrokeId = globalThis.crypto?.randomUUID?.() || `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      for (const segment of chunkStrokeForPortal(stroke, localPlayerId, logicalStrokeId)) {
+        portal.send({ type: "stroke", payload: { playerId: localPlayerId, stroke: segment } });
+      }
+    } catch (error) {
+      console.warn("[RoomPageClient] Dropping stroke that cannot fit Portal's message budget", error);
+    }
   };
 
   const handleUndo = () => {
-    portal.send({ type: "undoLastStroke", payload: {} });
+    const logicalStrokeId = localStrokes.at(-1)?.logicalStrokeId;
+    portal.send({ type: "undoLastStroke", payload: logicalStrokeId ? { logicalStrokeId } : {} });
   };
 
   const handleClear = () => {

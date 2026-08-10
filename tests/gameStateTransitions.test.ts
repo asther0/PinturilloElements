@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { applyNextTurn, formatWordHint, returnToLobby } from "../lib/gameLogic";
+import {
+  applyNextTurn,
+  formatWordHint,
+  haveAllEligiblePlayersGuessed,
+  recordFirstCorrectGuess,
+  returnToLobby,
+} from "../lib/gameLogic";
 import type { GameState } from "../lib/types";
 
 function roundResultState(): GameState {
@@ -97,5 +103,86 @@ describe("return-to-lobby state transition", () => {
     expect(lobby.roomConfig).toBe(roomConfig);
     expect(lobby.hostId).toBe("host");
     expect(lobby.totalRounds).toBe(3);
+  });
+});
+
+describe("correct guess completion", () => {
+  test("finishes a two-player round when the only guesser answers correctly", () => {
+    const result = recordFirstCorrectGuess({
+      playerIds: ["drawer", "guesser"],
+      drawerId: "drawer",
+      guesserId: "guesser",
+      scores: { drawer: 0, guesser: 0 },
+      correctGuesserIds: new Set(),
+      guessScore: 75,
+    });
+
+    expect(result.accepted).toBe(true);
+    expect(haveAllEligiblePlayersGuessed(["drawer", "guesser"], "drawer", result.correctGuesserIds)).toBe(true);
+    expect(result.scores).toEqual({ drawer: 25, guesser: 75 });
+  });
+
+  test("waits for each unique non-drawer guesser", () => {
+    const first = recordFirstCorrectGuess({
+      playerIds: ["drawer", "alba", "luis"],
+      drawerId: "drawer",
+      guesserId: "alba",
+      scores: { drawer: 0, alba: 0, luis: 0 },
+      correctGuesserIds: new Set(),
+      guessScore: 80,
+    });
+    const last = recordFirstCorrectGuess({
+      playerIds: ["drawer", "alba", "luis"],
+      drawerId: "drawer",
+      guesserId: "luis",
+      scores: first.scores,
+      correctGuesserIds: first.correctGuesserIds,
+      guessScore: 70,
+    });
+
+    expect(haveAllEligiblePlayersGuessed(["drawer", "alba", "luis"], "drawer", first.correctGuesserIds)).toBe(false);
+    expect(haveAllEligiblePlayersGuessed(["drawer", "alba", "luis"], "drawer", last.correctGuesserIds)).toBe(true);
+    expect(last.scores).toEqual({ drawer: 50, alba: 80, luis: 70 });
+  });
+
+  test("ignores duplicate answers without scoring or completing again", () => {
+    const first = recordFirstCorrectGuess({
+      playerIds: ["drawer", "guesser"],
+      drawerId: "drawer",
+      guesserId: "guesser",
+      scores: { drawer: 0, guesser: 0 },
+      correctGuesserIds: new Set(),
+      guessScore: 75,
+    });
+    const duplicate = recordFirstCorrectGuess({
+      playerIds: ["drawer", "guesser"],
+      drawerId: "drawer",
+      guesserId: "guesser",
+      scores: first.scores,
+      correctGuesserIds: first.correctGuesserIds,
+      guessScore: 75,
+    });
+
+    expect(duplicate.accepted).toBe(false);
+    expect(
+      duplicate.accepted &&
+        haveAllEligiblePlayersGuessed(["drawer", "guesser"], "drawer", duplicate.correctGuesserIds)
+    ).toBe(false);
+    expect(duplicate.scores).toEqual(first.scores);
+  });
+
+  test("excludes the drawer from eligible correct guessers", () => {
+    const result = recordFirstCorrectGuess({
+      playerIds: ["drawer", "guesser"],
+      drawerId: "drawer",
+      guesserId: "drawer",
+      scores: { drawer: 0, guesser: 0 },
+      correctGuesserIds: new Set(),
+      guessScore: 75,
+    });
+
+    expect(result.accepted).toBe(false);
+    expect(haveAllEligiblePlayersGuessed(["drawer", "guesser"], "drawer", result.correctGuesserIds)).toBe(false);
+    expect(result.scores).toEqual({ drawer: 0, guesser: 0 });
   });
 });
