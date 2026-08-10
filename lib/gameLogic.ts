@@ -183,6 +183,25 @@ export function shouldEndGame(state: GameState): boolean {
 }
 
 export const DRAWER_GUESS_BONUS = 25;
+export const DRAWER_NO_CORRECT_GUESSERS_PENALTY = 25;
+
+/**
+ * Produce the score payload for a completed round. The host calls this once
+ * before broadcasting roundEnd; clients apply that payload without adjusting
+ * scores locally.
+ */
+export function finalizeRoundScores(
+  drawerId: string,
+  scores: Record<string, number>,
+  correctGuesserIds: ReadonlySet<string>
+): Record<string, number> {
+  if (correctGuesserIds.size > 0) return scores;
+
+  return {
+    ...scores,
+    [drawerId]: (scores[drawerId] || 0) - DRAWER_NO_CORRECT_GUESSERS_PENALTY,
+  };
+}
 
 export type CorrectGuessProgress = {
   playerIds: readonly string[];

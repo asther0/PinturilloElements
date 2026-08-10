@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   applyNextTurn,
+  finalizeRoundScores,
   formatWordHint,
   haveAllEligiblePlayersGuessed,
   recordFirstCorrectGuess,
@@ -184,5 +185,20 @@ describe("correct guess completion", () => {
     expect(result.accepted).toBe(false);
     expect(haveAllEligiblePlayersGuessed(["drawer", "guesser"], "drawer", result.correctGuesserIds)).toBe(false);
     expect(result.scores).toEqual({ drawer: 0, guesser: 0 });
+  });
+});
+
+describe("round completion scoring", () => {
+  test("deducts exactly 25 points from the drawer when nobody guesses correctly", () => {
+    expect(finalizeRoundScores("drawer", { drawer: 100, guest: 40 }, new Set())).toEqual({
+      drawer: 75,
+      guest: 40,
+    });
+  });
+
+  test("does not deduct from the drawer when a non-drawer player guessed correctly", () => {
+    const scores = { drawer: 125, alba: 80, luis: 70 };
+
+    expect(finalizeRoundScores("drawer", scores, new Set(["alba"]))).toBe(scores);
   });
 });

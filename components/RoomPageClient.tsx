@@ -22,6 +22,7 @@ import {
   getCurrentDrawer,
   makeHumanPlayer,
   DRAWER_GUESS_BONUS,
+  finalizeRoundScores,
   haveAllEligiblePlayersGuessed,
   recordFirstCorrectGuess,
   shouldStartChoosingCountdown,
@@ -257,6 +258,7 @@ function RoomInner({
   // Correct answers are tracked per round, so retries do not score twice or
   // emit duplicate early-round completions.
   const correctGuesserIdsRef = useRef(new Set<string>());
+  const endedRoundKeyRef = useRef<string | null>(null);
   const playedCorrectGuessSoundIdsRef = useRef(new Set<string>());
   const playedRoundCompletionSoundIdsRef = useRef(new Set<string>());
   const lastSnapshotRequestIdRef = useRef<string | null>(null);
@@ -277,6 +279,39 @@ function RoomInner({
 
   const isDrawer = isLocalPlayerDrawer(game, localPlayerId);
   const currentDrawer = getCurrentDrawer(game);
+
+  const portal = usePortal();
+  const portalRef = useRef(portal);
+  portalRef.current = portal;
+
+  const sendRoundEndAsHost = useCallback((
+    scores = gameRef.current.scores,
+    correctGuesserIds = correctGuesserIdsRef.current
+  ) => {
+    const authoritativeState = gameRef.current;
+    const roundState = authoritativeState.roundState;
+    if (
+      authoritativeState.hostId !== localPlayerId ||
+      authoritativeState.phase !== "drawing" ||
+      !roundState
+    ) return;
+
+    const roundKey = `${roundState.startedAt}:${roundState.drawerId}`;
+    if (endedRoundKeyRef.current === roundKey) return;
+    endedRoundKeyRef.current = roundKey;
+
+    portalRef.current.send({
+      type: "roundEnd",
+      payload: {
+        word: roundState.word,
+        scores: finalizeRoundScores(
+          roundState.drawerId,
+          scores,
+          correctGuesserIds
+        ),
+      },
+    });
+  }, [localPlayerId]);
 
   const handleEvent = useCallback((event: PortalEvent) => {
     const g = gameRef.current;
@@ -406,10 +441,7 @@ function RoomInner({
             g.hostId === localPlayerId &&
             haveAllEligiblePlayersGuessed(g.players.map((player) => player.id), drawerId, progress.correctGuesserIds)
           ) {
-            portalRef.current.send({
-              type: "roundEnd",
-              payload: { word, scores: progress.scores },
-            });
+            sendRoundEndAsHost(progress.scores, progress.correctGuesserIds);
           }
         }
         break;
@@ -590,12 +622,9 @@ function RoomInner({
         break;
       }
     }
-  }, [localPlayerId, isHost]);
+  }, [localPlayerId, isHost, sendRoundEndAsHost]);
 
   useRegisterPortalEventHandler(handleEvent);
-  const portal = usePortal();
-  const portalRef = useRef(portal);
-  portalRef.current = portal;
 
   // Guests enter via one idempotent request. Its accepted response contains
   // the authoritative roster, so initial entry never depends on a separately
@@ -819,13 +848,7 @@ function RoomInner({
           }
         } else if (gameRef.current.phase === "drawing") {
           if (isHost) {
-            portal.send({
-              type: "roundEnd",
-              payload: {
-                word: gameRef.current.roundState?.word || "",
-                scores: gameRef.current.scores,
-              },
-            });
+            sendRoundEndAsHost();
           }
         } else if (gameRef.current.phase === "roundResult") {
           if (!isHost) return;
@@ -858,7 +881,7 @@ function RoomInner({
     return () => {
       if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
     };
-  }, [game.phase, game.wordsForRound, isHost, portal]);
+  }, [game.phase, game.wordsForRound, isHost, portal, sendRoundEndAsHost]);
 
 
 
@@ -895,14 +918,7 @@ function RoomInner({
   };
 
   const handleEndRoundEarly = () => {
-    if (!isDrawer && !isHost) return;
-    portal.send({
-      type: "roundEnd",
-      payload: {
-        word: game.roundState?.word || "",
-        scores: game.scores,
-      },
-    });
+    sendRoundEndAsHost();
   };
 
   const handleReturnToLobby = () => {
