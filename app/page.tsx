@@ -304,7 +304,7 @@ export default function HomePage() {
             className="mt-3 w-full border-2 border-[#111111] bg-[#FFFDF7] px-4 py-3 text-[14px] font-bold uppercase tracking-[0.06em] text-[#111111] shadow-[3px_3px_0_#111111] transition hover:bg-[#E7E2D4] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
             style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
           >
-            Crear sala pública
+            Configurar nueva sala
           </button>
           <p className="mt-3 text-center text-[12px] text-[#6B6B62]" style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}>
             Todas las salas de este MVP son públicas.
@@ -425,10 +425,10 @@ export default function HomePage() {
                   className="text-[18px] font-bold uppercase tracking-[0.06em] text-[#111111]"
                   style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
                 >
-                  Crear sala pública
+                  Nueva sala
                 </h2>
                 <p className="mt-1 text-[13px] leading-[1.6] text-[#6B6B62]" style={{ fontFamily: "var(--font-dm-sans), DM Sans, system-ui, sans-serif" }}>
-                  Configura la partida. Cualquier persona puede unirse mientras haya espacio.
+                  Define las reglas antes de crearla. Cualquier persona podrá unirse mientras haya espacio.
                 </p>
               </div>
               <button type="button" onClick={() => setShowCreateModal(false)} aria-label="Cerrar creación de sala" className="border-2 border-[#111111] bg-[#FFFDF7] p-2 text-[#111111] shadow-[3px_3px_0_#111111] transition hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none">
@@ -615,7 +615,7 @@ export default function HomePage() {
               className="mt-4 w-full border-2 border-[#111111] bg-[#7EB6FF] px-4 py-3 text-[14px] font-bold uppercase tracking-[0.06em] text-[#111111] shadow-[5px_5px_0_#111111] transition hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0_#111111] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
               style={{ fontFamily: "var(--font-space-mono), Space Mono, ui-monospace, monospace" }}
             >
-              Crear y entrar a la sala
+              Crear sala
             </button>
           </div>
         </div>
