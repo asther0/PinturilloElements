@@ -15,6 +15,7 @@ import {
 import { PortalEvent, PortalPresenceMetadata } from "@/lib/types";
 import { roomChannelId } from "@/lib/roomId";
 import { createPortalDispatch, PortalDispatch } from "@/lib/portalDispatch";
+import { createPortalOutbox } from "@/lib/portalOutbox";
 import {
   isPortalEventWithinBudget,
   isPortalEventWithinBudgetAfterDispatch,
@@ -31,7 +32,7 @@ const HAS_KEY = Boolean(API_KEY && API_KEY !== "your_portal_api_key_here");
 const portalClient = HAS_KEY ? new Portal({ apiKey: API_KEY! }) : null;
 
 interface PortalContextValue {
-  send: (event: PortalEvent, recipientId?: string) => void;
+  send: (event: PortalEvent, recipientId?: string) => Promise<void>;
   connected: boolean;
   detailedPresence?: DetailedPresence;
   connectionStatus?: ChannelStatus;
@@ -39,7 +40,7 @@ interface PortalContextValue {
 }
 
 const PortalContext = createContext<PortalContextValue>({
-  send: () => {},
+  send: () => Promise.resolve(),
   connected: false,
 });
 
@@ -101,7 +102,13 @@ export function useRegisterPortalEventHandler(handler: EventHandler) {
 }
 
 // Local fallback: in-memory event bus when no Portal key is configured
-function LocalFallbackProvider({ children, send }: { children: ReactNode; send: (event: PortalEvent) => void }) {
+function LocalFallbackProvider({
+  children,
+  send,
+}: {
+  children: ReactNode;
+  send: (event: PortalEvent, recipientId?: string) => Promise<void>;
+}) {
 
   return (
     <PortalContext.Provider value={{ send, connected: true }}>
@@ -124,7 +131,7 @@ function ChannelListener({
   roomId: string;
   metadata?: PortalPresenceMetadata;
   deliver: (event: PortalEvent, fallbackId?: string) => void;
-  onSendReady: (send: (event: PortalEvent, recipientId?: string) => void) => void;
+  onSendReady: (send: (event: PortalEvent, recipientId?: string) => Promise<void>) => void;
   onConnectionChange: (connected: boolean) => void;
   onConnectionStatusChange: (status: ChannelStatus) => void;
   onConnectionError: (error: PortalError) => void;
@@ -165,6 +172,11 @@ function ChannelListener({
     onMessage: handleMessage,
     onError: onConnectionError,
   });
+  const portalSendRef = useRef(send);
+  portalSendRef.current = send;
+  const outboxRef = useRef(
+    createPortalOutbox((input: { content: string; to?: string }) => portalSendRef.current(input))
+  );
 
   // Expose send function to parent. useLayoutEffect guarantees this runs
   // after the component commits, avoiding setState-during-render warnings.
@@ -178,11 +190,11 @@ function ChannelListener({
         console.warn(
           `[PortalBridge] Dropping oversized ${event.type} message: ${byteLength} bytes > ${PORTAL_MESSAGE_BYTE_BUDGET}`
         );
-        return;
+        return Promise.resolve();
       }
-      send({ content, to: recipientId });
+      return outboxRef.current.send({ content, to: recipientId });
     });
-  }, [send, onSendReady]);
+  }, [onSendReady]);
 
   useEffect(() => {
     onConnectionChange(status === "ready");
@@ -210,14 +222,17 @@ export function PortalBridge({
   roomId: string;
   presenceMetadata?: PortalPresenceMetadata;
 }) {
-  const portalSendRef = useRef<((event: PortalEvent, recipientId?: string) => void) | null>(null);
+  const portalSendRef = useRef<((event: PortalEvent, recipientId?: string) => Promise<void>) | null>(null);
   const [connected, setConnected] = useState(false);
   const [detailedPresence, setDetailedPresence] = useState<DetailedPresence>();
   const [connectionStatus, setConnectionStatus] = useState<ChannelStatus>();
   const [connectionError, setConnectionError] = useState<{ code: string; message: string }>();
   const handlerRef = useRef<EventHandler | null>(null);
   const pendingEventsRef = useRef<PortalEvent[]>([]);
-  const pendingOutboundRef = useRef<{ event: PortalEvent; recipientId?: string }[]>([]);
+  const pendingOutboundRef = useRef<
+    { event: PortalEvent; recipientId?: string; resolve: () => void }[]
+  >([]);
+  const latestPublishRef = useRef<Promise<void>>(Promise.resolve());
   const dispatchRef = useRef<PortalDispatch | null>(null);
 
   const deliverLocal = useCallback((event: PortalEvent) => {
@@ -235,9 +250,13 @@ export function PortalBridge({
       publishRemote: (event, recipientId) => {
         if (!HAS_KEY || !portalClient) return;
         if (portalSendRef.current) {
-          portalSendRef.current(event, recipientId);
+          latestPublishRef.current = portalSendRef.current(event, recipientId).catch((error) => {
+            console.warn("[PortalBridge] Portal publish failed", error);
+          });
         } else {
-          pendingOutboundRef.current.push({ event, recipientId });
+          latestPublishRef.current = new Promise<void>((resolve) => {
+            pendingOutboundRef.current.push({ event, recipientId, resolve });
+          });
         }
       },
     });
@@ -274,21 +293,26 @@ export function PortalBridge({
   );
 
   const send = useCallback(
-    (event: PortalEvent, recipientId?: string) => {
+    (event: PortalEvent, recipientId?: string): Promise<void> => {
       if (!isPortalEventWithinBudgetAfterDispatch(event)) {
         console.warn(`[PortalBridge] Dropping oversized ${event.type} message before local dispatch`);
-        return;
+        return Promise.resolve();
       }
       dispatch.dispatch(event, recipientId);
+      return latestPublishRef.current;
     },
     [dispatch]
   );
 
-  const onSendReady = useCallback((nextSend: (event: PortalEvent, recipientId?: string) => void) => {
+  const onSendReady = useCallback((nextSend: (event: PortalEvent, recipientId?: string) => Promise<void>) => {
     portalSendRef.current = nextSend;
     const pending = pendingOutboundRef.current.splice(0);
-    for (const { event, recipientId } of pending) {
-      nextSend(event, recipientId);
+    for (const { event, recipientId, resolve } of pending) {
+      latestPublishRef.current = nextSend(event, recipientId)
+        .catch((error) => {
+          console.warn("[PortalBridge] Portal publish failed", error);
+        })
+        .finally(resolve);
     }
   }, []);
 

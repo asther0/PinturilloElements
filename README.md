@@ -1,5 +1,13 @@
 # PinturilloElements
 
+[![Bun](https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white)](https://bun.sh/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Portal](https://img.shields.io/badge/Portal-realtime-4B32C3)](https://docs.useportal.co/)
+[![TryElements](https://img.shields.io/badge/TryElements-catalog-111111)](https://github.com/crafter-station/elements)
+[![Petdex](https://img.shields.io/badge/Petdex-avatars-111111)](https://github.com/crafter-station/petdex)
+
 Real-time multiplayer web game. One player draws a tech-company logo
 from memory on a constrained canvas while the rest of the room races
 to guess the brand. A partida is a fixed sequence of rondas scored
