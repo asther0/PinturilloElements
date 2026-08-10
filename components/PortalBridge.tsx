@@ -14,6 +14,7 @@ import {
 } from "react";
 import { PortalEvent, PortalPresenceMetadata } from "@/lib/types";
 import { roomChannelId } from "@/lib/roomId";
+import { createPortalDispatch, PortalDispatch } from "@/lib/portalDispatch";
 import { PortalProvider, useChannel } from "@portalsdk/react";
 import type { ChannelStatus, DetailedPresence, PortalError } from "@portalsdk/core";
 import { Portal, Message } from "@portalsdk/core";
@@ -53,15 +54,6 @@ export function usePortal() {
 // ---------------------------------------------------------------------------
 
 type EventHandler = (event: PortalEvent) => void;
-
-function withEventId(event: PortalEvent, fallbackId?: string): PortalEvent {
-  if (event.eventId) return event;
-
-  const generatedId =
-    globalThis.crypto?.randomUUID?.() ||
-    `event-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  return { ...event, eventId: fallbackId || generatedId };
-}
 
 function safePresenceMetadata(metadata?: PortalPresenceMetadata): PortalPresenceMetadata | undefined {
   if (!metadata || typeof metadata.playerId !== "string") return undefined;
@@ -105,19 +97,7 @@ export function useRegisterPortalEventHandler(handler: EventHandler) {
 }
 
 // Local fallback: in-memory event bus when no Portal key is configured
-function LocalFallbackProvider({
-  children,
-  deliver,
-}: {
-  children: ReactNode;
-  deliver: (event: PortalEvent) => void;
-}) {
-  const send = useCallback(
-    (event: PortalEvent) => {
-      deliver(withEventId(event));
-    },
-    [deliver]
-  );
+function LocalFallbackProvider({ children, send }: { children: ReactNode; send: (event: PortalEvent) => void }) {
 
   return (
     <PortalContext.Provider value={{ send, connected: true }}>
@@ -189,7 +169,7 @@ function ChannelListener({
     onSendReady((event: PortalEvent, recipientId?: string) => {
       // NOTE: sender authorization is unresolved in a client-only topology;
       // any connected client can forge senderId. Host-side validation required.
-      const content = JSON.stringify(withEventId(event));
+      const content = JSON.stringify(event);
       const byteLength = encoder.encode(content).length;
       if (byteLength > MAX_SEND_BYTES) {
         console.warn(
@@ -235,20 +215,38 @@ export function PortalBridge({
   const handlerRef = useRef<EventHandler | null>(null);
   const pendingEventsRef = useRef<PortalEvent[]>([]);
   const pendingOutboundRef = useRef<{ event: PortalEvent; recipientId?: string }[]>([]);
-  const processedEventIds = useRef(new Set<string>());
+  const dispatchRef = useRef<PortalDispatch | null>(null);
 
-  const deliver = useCallback((event: PortalEvent, fallbackId?: string) => {
-    const normalizedEvent = withEventId(event, fallbackId);
-    const eventId = normalizedEvent.eventId;
-    if (eventId && processedEventIds.current.has(eventId)) return;
-    if (eventId) processedEventIds.current.add(eventId);
+  const deliverLocal = useCallback((event: PortalEvent) => {
     const handler = handlerRef.current;
     if (handler) {
-      handler(normalizedEvent);
+      handler(event);
     } else {
-      pendingEventsRef.current.push(normalizedEvent);
+      pendingEventsRef.current.push(event);
     }
   }, []);
+
+  if (!dispatchRef.current) {
+    dispatchRef.current = createPortalDispatch({
+      deliverLocal,
+      publishRemote: (event, recipientId) => {
+        if (!HAS_KEY || !portalClient) return;
+        if (portalSendRef.current) {
+          portalSendRef.current(event, recipientId);
+        } else {
+          pendingOutboundRef.current.push({ event, recipientId });
+        }
+      },
+    });
+  }
+
+  const dispatch = dispatchRef.current;
+  const deliver = useCallback(
+    (event: PortalEvent, fallbackId?: string) => {
+      dispatch.receive(event, fallbackId);
+    },
+    [dispatch]
+  );
 
   const register = useCallback((handler: EventHandler) => {
     handlerRef.current = handler;
@@ -267,13 +265,9 @@ export function PortalBridge({
 
   const send = useCallback(
     (event: PortalEvent, recipientId?: string) => {
-      if (portalSendRef.current) {
-        portalSendRef.current(event, recipientId);
-      } else {
-        pendingOutboundRef.current.push({ event, recipientId });
-      }
+      dispatch.dispatch(event, recipientId);
     },
-    []
+    [dispatch]
   );
 
   const onSendReady = useCallback((nextSend: (event: PortalEvent, recipientId?: string) => void) => {
@@ -296,7 +290,7 @@ export function PortalBridge({
   if (!HAS_KEY || !portalClient) {
     return (
       <EventHandlerContext.Provider value={eventHandlerCtx}>
-        <LocalFallbackProvider deliver={deliver}>
+        <LocalFallbackProvider send={send}>
           {children}
         </LocalFallbackProvider>
       </EventHandlerContext.Provider>
