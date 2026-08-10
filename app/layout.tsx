@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Space_Mono, DM_Sans } from "next/font/google";
 import { UiSoundFeedback } from "@/components/UiSoundFeedback";
 import "./globals.css";
@@ -34,6 +35,7 @@ export default function RootLayout({
       >
         <UiSoundFeedback />
         {children}
+        <Analytics />
       </body>
     </html>
   );
