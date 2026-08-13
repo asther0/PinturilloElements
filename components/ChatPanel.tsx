@@ -146,7 +146,7 @@ export default function ChatPanel({
                     <span className="ml-auto text-[#111111]">Correcto</span>
                   )}
                 </div>
-                <div>{msg.content}</div>
+                {!msg.isCorrect && <div>{msg.content}</div>}
               </div>
             );
           })}
