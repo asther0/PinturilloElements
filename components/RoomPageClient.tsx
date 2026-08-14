@@ -833,6 +833,13 @@ function RoomInner({
         return;
       }
       phaseTimeRef.current = CHOOSE_WORD_TIME_SECONDS;
+      if (showRoundStartOverlay) {
+        // Keep the choose-word countdown frozen at its full value while the
+        // round-start intro is covering the screen, so it doesn't burn
+        // seconds the player can't act on yet.
+        setPhaseTimeLeft(phaseTimeRef.current);
+        return;
+      }
     } else if (game.phase === "drawing") {
       phaseTimeRef.current = gameRef.current.roomConfig.drawTimeSeconds;
     } else if (game.phase === "roundResult") {
@@ -891,7 +898,7 @@ function RoomInner({
     return () => {
       if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
     };
-  }, [game.phase, game.wordsForRound, isHost, portal, sendRoundEndAsHost]);
+  }, [game.phase, game.wordsForRound, isHost, portal, sendRoundEndAsHost, showRoundStartOverlay]);
 
 
 
