@@ -51,6 +51,7 @@ import {
 import GameCanvas from "@/components/GameCanvas";
 import ChatPanel from "@/components/ChatPanel";
 import GameUI from "@/components/GameUI";
+import RoundStartOverlay from "@/components/RoundStartOverlay";
 
 const FONT_DISPLAY =
   "var(--font-space-mono), Space Mono, ui-monospace, monospace";
@@ -246,6 +247,8 @@ function RoomInner({
     drawTimeSeconds: roomConfig.drawTimeSeconds,
     lateJoin: roomConfig.lateJoin,
   });
+  const [showRoundStartOverlay, setShowRoundStartOverlay] = useState(false);
+  const previousPhaseRef = useRef(game.phase);
   const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const phaseTimeRef = useRef(0);
   const gameRef = useRef(game);
@@ -276,6 +279,13 @@ function RoomInner({
   gameRef.current = game;
   playerNameRef.current = playerName;
   avatarRef.current = avatar;
+
+  useEffect(() => {
+    if (previousPhaseRef.current === "lobby" && game.phase !== "lobby") {
+      setShowRoundStartOverlay(true);
+    }
+    previousPhaseRef.current = game.phase;
+  }, [game.phase]);
 
   const isDrawer = isLocalPlayerDrawer(game, localPlayerId);
   const currentDrawer = getCurrentDrawer(game);
@@ -1279,6 +1289,10 @@ function RoomInner({
             </div>
           </div>
         </div>
+      )}
+
+      {showRoundStartOverlay && (
+        <RoundStartOverlay onDone={() => setShowRoundStartOverlay(false)} />
       )}
 
       {game.phase === "lobby" && (
